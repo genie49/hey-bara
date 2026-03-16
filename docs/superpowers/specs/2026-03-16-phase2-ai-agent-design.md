@@ -90,7 +90,7 @@ class KoogAgentEngine(
 
 ### 구성요소
 
-- **LLM 백엔드**: Gemini API (apiKey로 인증)
+- **LLM 백엔드**: Gemini API (모델: `gemini-3.1-flash-lite`, apiKey로 인증)
 - **Tool 정의**: CallTool 1개 (name: "make_call", param: contact)
 - **시스템 프롬프트**: 한국어 음성 비서 역할 정의
 
