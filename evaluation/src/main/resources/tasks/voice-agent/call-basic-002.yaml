@@ -1,0 +1,30 @@
+id: voice-agent/call-basic-002
+input: "아빠한테 전화 걸어"
+dataset: default-contacts
+expected:
+  tool_calls:
+    mode: superset
+    calls:
+      - tool: search_contacts
+        params:
+          query: "아빠"
+      - tool: make_call
+        params:
+          contact: "아빠"
+          phoneNumber: "010-2345-6789"
+  output_contains_any:
+    - "전화"
+    - "걸"
+  constraints:
+    max_turns: 5
+    max_toolcalls: 3
+  state_check:
+    - key: "calls.last.contact"
+      expect: "아빠"
+  llm_grader:
+    rubric: response-quality.md
+    min_score: 0.7
+metadata:
+  category: call
+  description: "기본 전화 걸기 — 아빠"
+  tags: [call, basic]
