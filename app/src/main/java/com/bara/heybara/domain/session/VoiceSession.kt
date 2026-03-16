@@ -14,6 +14,8 @@ class VoiceSession(
         private set
 
     var onStateChanged: ((SessionState) -> Unit)? = null
+    // STT 최종 결과가 나왔을 때 호출되는 콜백
+    var onSpeechResult: ((String) -> Unit)? = null
 
     fun onWakeWordDetected() {
         if (currentState != SessionState.IDLE) return
@@ -32,6 +34,7 @@ class VoiceSession(
         lastRecognizedText = text
         recognizer.stop()
         transitionTo(SessionState.PROCESSING)
+        onSpeechResult?.invoke(text)
     }
 
     fun endSession() {

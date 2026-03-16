@@ -76,6 +76,7 @@ class VoiceAssistantService : Service() {
                     }
                 }
             }
+            onSpeechResult = { text -> this@VoiceAssistantService.onSpeechResult(text) }
         }
         session?.onWakeWordDetected()
     }
