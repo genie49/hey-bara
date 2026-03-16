@@ -4,13 +4,16 @@ import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import org.mockito.kotlin.*
+import com.bara.heybara.domain.agent.*
 import com.bara.heybara.domain.voice.*
+import kotlinx.coroutines.test.runTest
 
 class VoiceSessionTest {
 
     private lateinit var mockRecognizer: SpeechRecognizer
     private lateinit var mockTts: TtsEngine
     private lateinit var mockBeep: BeepPlayer
+    private lateinit var mockAgent: AgentEngine
     private lateinit var session: VoiceSession
 
     @Before
@@ -18,8 +21,11 @@ class VoiceSessionTest {
         mockRecognizer = mock()
         mockTts = mock()
         mockBeep = mock()
-        session = VoiceSession(mockRecognizer, mockTts, mockBeep)
+        mockAgent = mock()
+        session = VoiceSession(mockRecognizer, mockTts, mockBeep, mockAgent)
     }
+
+    // === Phase 1 기존 테스트 ===
 
     @Test
     fun `initial state is IDLE`() {
@@ -78,7 +84,6 @@ class VoiceSessionTest {
         session.onWakeWordDetected()
         assertEquals(SessionState.LISTENING, session.currentState)
         session.onWakeWordDetected()
-        // beep은 최초 1회만 호출
         verify(mockBeep, times(1)).playBeep(any())
     }
 
@@ -130,7 +135,88 @@ class VoiceSessionTest {
         session.onSpeechRecognized("첫 번째")
         assertEquals(SessionState.PROCESSING, session.currentState)
         session.onSpeechRecognized("두 번째")
-        // PROCESSING 상태에서 무시되므로 첫 번째 텍스트 유지
         assertEquals("첫 번째", session.lastRecognizedText)
+    }
+
+    // === Phase 2 AgentEngine 테스트 ===
+
+    @Test
+    fun `processWithAgent transitions to CONFIRMING when confirmation required`() = runTest {
+        whenever(mockAgent.process("엄마한테 전화해")).thenReturn(
+            AgentResponse("엄마한테 전화를 걸까요?", AgentAction.Call("엄마"), true)
+        )
+        session.onWakeWordDetected()
+        session.onSpeechRecognized("엄마한테 전화해")
+        session.processWithAgent()
+        assertEquals(SessionState.CONFIRMING, session.currentState)
+    }
+
+    @Test
+    fun `processWithAgent speaks response when confirmation required`() = runTest {
+        whenever(mockAgent.process("엄마한테 전화해")).thenReturn(
+            AgentResponse("엄마한테 전화를 걸까요?", AgentAction.Call("엄마"), true)
+        )
+        session.onWakeWordDetected()
+        session.onSpeechRecognized("엄마한테 전화해")
+        session.processWithAgent()
+        verify(mockTts).speak(eq("엄마한테 전화를 걸까요?"), any())
+    }
+
+    @Test
+    fun `processWithAgent speaks and ends when no confirmation needed`() = runTest {
+        whenever(mockAgent.process("오늘 날씨")).thenReturn(
+            AgentResponse("오늘 서울은 맑아요", null, false)
+        )
+        session.onWakeWordDetected()
+        session.onSpeechRecognized("오늘 날씨")
+        session.processWithAgent()
+        verify(mockTts).speak(eq("오늘 서울은 맑아요"), any())
+    }
+
+    @Test
+    fun `processWithAgent handles error and returns to IDLE`() = runTest {
+        whenever(mockAgent.process(any())).thenThrow(RuntimeException("Network error"))
+        session.onWakeWordDetected()
+        session.onSpeechRecognized("테스트")
+        session.processWithAgent()
+        verify(mockTts).speak(eq("이해하지 못했어요"), any())
+    }
+
+    @Test
+    fun `processWithAgent falls back to echo when no agent`() = runTest {
+        val sessionNoAgent = VoiceSession(mockRecognizer, mockTts, mockBeep)
+        sessionNoAgent.onWakeWordDetected()
+        sessionNoAgent.onSpeechRecognized("테스트")
+        sessionNoAgent.processWithAgent()
+        verify(mockTts).speak(eq("테스트라고 하셨나요?"), any())
+    }
+
+    @Test
+    fun `confirmAction invokes onActionExecute callback`() = runTest {
+        var executedAction: AgentAction? = null
+        session.onActionExecute = { executedAction = it }
+        whenever(mockAgent.process("엄마한테 전화해")).thenReturn(
+            AgentResponse("엄마한테 전화를 걸까요?", AgentAction.Call("엄마"), true)
+        )
+        session.onWakeWordDetected()
+        session.onSpeechRecognized("엄마한테 전화해")
+        session.processWithAgent()
+        session.confirmAction()
+        assertEquals(AgentAction.Call("엄마"), executedAction)
+        assertEquals(SessionState.IDLE, session.currentState)
+    }
+
+    @Test
+    fun `cancelAction speaks cancel message and returns to IDLE`() {
+        session.onWakeWordDetected()
+        session.onSpeechRecognized("테스트")
+        session.cancelAction()
+        verify(mockTts).speak(eq("취소할게요"), any())
+    }
+
+    @Test
+    fun `processWithAgent ignored when not in PROCESSING`() = runTest {
+        session.processWithAgent()
+        verifyNoInteractions(mockAgent)
     }
 }
