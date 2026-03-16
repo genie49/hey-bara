@@ -1,5 +1,8 @@
 package com.bara.evaluation
 
+import com.bara.evaluation.cli.buildCli
+import com.github.ajalt.clikt.core.main
+
 fun main(args: Array<String>) {
-    println("Hey Bara Evaluation System")
+    buildCli().main(args)
 }
