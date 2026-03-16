@@ -3,6 +3,7 @@ import java.util.Properties
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 val localProperties = Properties().apply {
@@ -71,6 +72,12 @@ dependencies {
 
     // Sherpa-ONNX STT (local AAR)
     implementation(files("libs/sherpa-onnx-1.12.29.aar"))
+
+    // Koog AI Agent
+    implementation(libs.koog.agents)
+
+    // Jetpack Security (EncryptedSharedPreferences)
+    implementation(libs.security.crypto)
 
     // Testing
     testImplementation(libs.junit)
