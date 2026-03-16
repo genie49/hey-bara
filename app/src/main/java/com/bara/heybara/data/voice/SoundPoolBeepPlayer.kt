@@ -7,7 +7,7 @@ import android.media.AudioAttributes
 import android.media.SoundPool
 import com.bara.heybara.R
 
-class BeepPlayerImpl(context: Context) : BeepPlayer {
+class SoundPoolBeepPlayer(context: Context) : BeepPlayer {
 
     private val soundPool: SoundPool = SoundPool.Builder()
         .setMaxStreams(1)
