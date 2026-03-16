@@ -37,17 +37,23 @@ Hey Bara is an on-device voice AI assistant for Android, inspired by capybaras. 
 ### State Machine
 
 ```
-[IDLE] ──wake word detected──→ [LISTENING] ──speech recognized──→ [PROCESSING]
-  ↑                              │ timeout                         │
-  │                              ↓                                 │
-  │                           [IDLE]                                │
-  │                                                                 │
-  └──────────── action complete + TTS response ────────────────────┘
+[IDLE] ──wake word──→ [LISTENING] ──recognized──→ [PROCESSING] ──action──→ [CONFIRMING]
+  ↑                     │ 5s timeout                │ read query     │ "응"/"취소"
+  │                     ↓                           ↓                ↓
+  │                  TTS "네?"                   execute           execute/cancel
+  │                     │ 3s timeout              + TTS              + TTS
+  │                     ↓                           │                │
+  └─────────────────[IDLE]←─────────────────────────┘←───────────────┘
 ```
 
 - **IDLE**: Porcupine only (~10MB RAM), low power
-- **LISTENING**: Beep → Sherpa-ONNX STT active (5s timeout)
-- **PROCESSING**: Koog Agent parses → execute → TTS → return to IDLE
+- **LISTENING**: Beep → Sherpa-ONNX STT active (5s timeout, then "네?" + 3s extra)
+- **PROCESSING**: Koog Agent parses command, classifies as read/action
+- **CONFIRMING**: TTS asks confirmation → STT listens for "응"/"취소" (5s timeout)
+
+### Session Mutual Exclusion
+
+Only one session (voice or text) can be active at a time. If a wake word triggers during active text chat, the text session is paused and voice takes priority. After voice session ends, text chat resumes.
 
 ### On-Demand Session Pattern
 
@@ -67,7 +73,8 @@ app/
 ├── voice/
 │   ├── WakeWordDetector.kt          # Porcupine wrapper
 │   ├── SpeechRecognizer.kt          # Sherpa-ONNX wrapper
-│   └── TtsEngine.kt                 # Supertonic 2 wrapper
+│   ├── TtsEngine.kt                 # Supertonic 2 wrapper (fallback: Android TTS)
+│   └── ContactResolver.kt          # Fuzzy contact name matching
 ├── agent/
 │   ├── BaraAgent.kt                 # Koog Agent configuration
 │   ├── LLMFactory.kt                # Gemma 3n / Gemini API switching
@@ -100,8 +107,11 @@ app/
 │   └── BaraAccessibilityService.kt  # KakaoTalk UI automation
 ├── notification/
 │   └── BaraNotificationListener.kt  # Notification listener
-└── config/
-    └── SettingsManager.kt           # NLP mode, TTS settings
+├── config/
+│   ├── SettingsManager.kt           # NLP mode, TTS settings
+│   └── ResponseStrings.kt           # All TTS response strings (centralized)
+└── util/
+    └── PermissionManager.kt         # Permission request/check/fallback
 ```
 
 ---
@@ -128,8 +138,10 @@ app/
    ├── "응" / "해줘" → execute
    └── "아니" / "취소" → cancel
 9. Execute + TTS result announcement
-10. LLM summarizes conversation topic → save to local DB
-11. Release VoiceSession → [IDLE]
+10. Release VoiceSession → [IDLE]
+11. (Async) LLM summarizes conversation topic → save to local DB
+    - Runs in background coroutine, does not block return to IDLE
+    - If summarization fails, save with default topic "대화" + timestamp
 ```
 
 ### Text Chat Mode
@@ -173,7 +185,30 @@ After each conversation session completes:
 |-----------|---------|----------|
 | No speech after wake word | 5s | TTS "네?" → 3s extra wait → IDLE |
 | Waiting for confirmation | 5s | TTS "취소할게요" → IDLE |
-| Continuous conversation | N/A | Single-turn only (extensible later) |
+
+Note: The system supports limited multi-turn patterns (confirmation dialogue, clarification questions) but not open-ended continuous conversation. Extensible later.
+
+### Contact Resolution
+
+When a command references a person (e.g. "엄마한테 전화해"):
+
+1. LLM extracts the name/relationship from the command
+2. `ContactResolver` performs fuzzy matching against device contacts
+3. If single match → use it
+4. If multiple matches → TTS "엄마가 여러 명 있어요. 김영희, 이순자 중 누구요?" → CONFIRMING state
+5. If no match → TTS "연락처에서 엄마를 찾을 수 없어요"
+
+### Error Handling
+
+| Error | Behavior |
+|-------|----------|
+| STT returns empty/garbage | TTS "잘 못 들었어요, 다시 말해주세요" → LISTENING (1회 재시도 후 IDLE) |
+| LLM returns unparseable output | TTS "이해하지 못했어요" → IDLE |
+| Network failure (cloud mode) | TTS "인터넷 연결이 안 돼요" → IDLE |
+| Google API auth expired | TTS "구글 계정을 다시 연결해주세요" → IDLE |
+| Action execution failure | TTS "실행에 실패했어요" + reason → IDLE |
+| KakaoTalk UI changed | TTS "카카오톡 전송을 실패했어요. 앱이 업데이트됐을 수 있어요" → IDLE |
+| Accessibility service disconnected | TTS "접근성 서비스가 꺼져 있어요" → IDLE |
 
 ---
 
@@ -227,6 +262,28 @@ AI: "철수한테 뭐라고 보낼까요?"
 - Tools registered for each action (call, SMS, kakao, calendar, tasks, notifications)
 - Same tool definitions work with both on-device and cloud engines
 
+### Koog + Gemma 3n Validation
+
+Phase 2에서 Koog + Gemma 3n E2B의 tool calling 호환성을 반드시 검증한다.
+- Gemma 3n이 structured tool-call JSON을 안정적으로 생성하는지 확인
+- 실패 시 폴백 전략: custom prompt-based parsing 또는 cloud 모드 필수 안내
+
+### TTS Engine Details
+
+| 항목 | 내용 |
+|------|------|
+| Primary | Supertonic 2 (on-device, ONNX, ~60MB) |
+| Fallback | Android 기본 TTS (`TextToSpeech` API) |
+| Latency | ~200ms (모바일 3-5 step inference) |
+| Voice | 한국어 자연스러운 톤 |
+| Trigger | Supertonic 로드 실패 시 자동으로 Android TTS 폴백 |
+
+### Beep Sound
+
+- Short (~200ms) bundled audio asset
+- Played via `SoundPool` for low-latency playback
+- Located at `res/raw/beep.wav`
+
 ---
 
 ## Models
@@ -255,7 +312,7 @@ AI: "철수한테 뭐라고 보낼까요?"
 - Grouped by date (오늘, 어제, etc.)
 - Each item shows: category icon (color-coded), topic summary, time, input mode (음성/텍스트)
 - Tap to view full conversation transcript
-- Category colors: call=indigo, calendar=green, kakao=coral, notification=amber, task=indigo
+- Category colors: call=coral, calendar=green, kakao=coral, sms=teal, notification=amber, task=purple
 
 ### SettingsActivity
 
@@ -303,29 +360,38 @@ Active:
 
 ## Android Permissions
 
+### Mandatory (앱 실행에 필수)
+
 ```xml
-<!-- Microphone -->
 <uses-permission android:name="android.permission.RECORD_AUDIO"/>
 <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
 <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE"/>
-
-<!-- Phone -->
-<uses-permission android:name="android.permission.CALL_PHONE"/>
-<uses-permission android:name="android.permission.READ_CONTACTS"/>
-
-<!-- SMS -->
-<uses-permission android:name="android.permission.READ_SMS"/>
-<uses-permission android:name="android.permission.SEND_SMS"/>
-
-<!-- Call log -->
-<uses-permission android:name="android.permission.READ_CALL_LOG"/>
-
-<!-- Internet -->
 <uses-permission android:name="android.permission.INTERNET"/>
-
-<!-- Overlay (floating bubble on other apps) -->
-<uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
 ```
+
+거부 시: 앱 핵심 기능 불가, 권한 재요청 안내
+
+### Optional (기능별, 거부해도 다른 기능 사용 가능)
+
+```xml
+<uses-permission android:name="android.permission.CALL_PHONE"/>        <!-- 전화 -->
+<uses-permission android:name="android.permission.READ_CONTACTS"/>     <!-- 연락처 -->
+<uses-permission android:name="android.permission.READ_SMS"/>          <!-- 문자 조회 -->
+<uses-permission android:name="android.permission.SEND_SMS"/>          <!-- 문자 발송 -->
+<uses-permission android:name="android.permission.READ_CALL_LOG"/>     <!-- 통화 기록 -->
+<uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/> <!-- 오버레이 -->
+```
+
+거부 시: 해당 기능 비활성화, TTS로 "이 기능을 사용하려면 권한이 필요해요" 안내
+
+### Special Permissions (설정에서 수동 활성화)
+
+- NotificationListenerService: 알림 조회
+- AccessibilityService: 카톡 자동 전송
+
+### Foreground Service Type
+
+IDLE 상태에서도 Porcupine이 마이크를 사용하므로 `FOREGROUND_SERVICE_MICROPHONE` 타입이 적절하다. Android 14+ 에서 continuous microphone access로 분류됨. 사이드로딩 앱이라 Play Store 정책 미적용.
 
 Plus service declarations for NotificationListenerService and AccessibilityService.
 
@@ -342,6 +408,7 @@ Goal: Validate end-to-end voice loop without AI/actions.
 
 STT text → Koog Agent + LLMFactory → Gemma 3n / Gemini API.
 Goal: Natural language command parsing works. Actions log-only (not yet connected).
+**Validation gate**: Koog + Gemma 3n tool calling 호환성 검증. 실패 시 cloud 모드 우선 또는 custom parsing 폴백.
 
 ### Phase 3: Core Actions
 
@@ -353,6 +420,9 @@ Goal: Natural language command parsing works. Actions log-only (not yet connecte
 ### Phase 4: Extended Actions
 
 - 4-1. KakaoTalk sending (AccessibilityService)
+  - UI 요소 식별: resource ID 우선, 실패 시 text matching 폴백
+  - 카카오톡 버전 호환성 체크 로직 포함
+  - UI 변경 감지 시 사용자에게 기능 비활성 안내
 - 4-2. Notification reading (NotificationListener)
 
 ### Phase 5: Stabilization
@@ -367,7 +437,7 @@ Goal: Natural language command parsing works. Actions log-only (not yet connecte
 
 - **Google Calendar API**: Event CRUD (list, insert, update, delete)
 - **Google Tasks API**: Task CRUD (list, insert, update status to completed)
-- **Auth**: Google Sign-In (OAuth 2.0), scopes: `calendar`, `tasks`
+- **Auth**: Android Credential Manager (One Tap sign-in) for OAuth 2.0, scopes: `calendar`, `tasks`
 - **Setup**: Google Cloud Console project with Calendar API + Tasks API enabled
 
 ---
@@ -403,7 +473,20 @@ Porcupine            ~0.01GB
 Sherpa-ONNX          ~0.2GB
 Gemma 3n E2B         ~2.0GB
 Supertonic 2         ~0.06GB
-Misc                 ~0.5GB
+App process + Koog   ~0.2GB
+Room DB + framework  ~0.1GB
 ─────────────────────────
-Total                ~6.8GB / 12GB
+Total                ~6.6GB / 12GB
 ```
+
+### Battery Impact
+
+- **IDLE (Porcupine 상시 대기)**: ~1-3% per hour (Picovoice 공식 벤치마크 기준)
+- **Active session**: 짧은 시간(~10-30초)이므로 무시 가능
+- NPU 활용 시 CPU 대비 3.7x 배터리 효율
+
+### Data Retention
+
+- 대화 히스토리 기본 90일 보관
+- 설정에서 수동 전체 삭제 가능
+- 90일 초과 기록 자동 삭제 (앱 시작 시 cleanup)
