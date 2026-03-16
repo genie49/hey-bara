@@ -1,0 +1,24 @@
+id: voice-agent/call-basic-001
+input: "엄마한테 전화해줘"
+dataset: default-contacts
+expected:
+  tool_calls:
+    mode: superset
+    calls:
+      - tool: search_contacts
+        params:
+          query: "엄마"
+  output_contains_any:
+    - "전화"
+    - "걸까요"
+    - "걸어"
+  constraints:
+    max_turns: 5
+    max_toolcalls: 3
+  llm_grader:
+    rubric: response-quality.md
+    min_score: 0.7
+metadata:
+  category: call
+  description: "기본 전화 걸기 — 연락처 검색 후 확인 질문"
+  tags: [call, basic]

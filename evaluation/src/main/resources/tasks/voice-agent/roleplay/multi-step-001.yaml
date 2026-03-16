@@ -1,0 +1,18 @@
+id: voice-agent/roleplay-multi-step-001
+type: roleplay
+persona: |
+  당신은 엄마한테 전화를 걸고 나서, 아빠한테도 문자를 보내고 싶은 사용자입니다.
+  전화 완료 후 "아빠한테도 잘 잔다고 문자 보내줘"라고 요청합니다.
+goal: |
+  1. 에이전트가 엄마에게 전화를 건다 (search_contacts + make_call)
+  2. 에이전트가 아빠에게 문자를 보낸다 (search_contacts + send_sms)
+initial_message: "엄마한테 전화해줘"
+dataset: default-contacts
+max_turns: 10
+completion_criteria:
+  rubric: conversation-quality.md
+  min_score: 0.7
+metadata:
+  category: roleplay
+  description: "전화 + 문자 연속 요청"
+  tags: [call, sms, multi-step, roleplay]

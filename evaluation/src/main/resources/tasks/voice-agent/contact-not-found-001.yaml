@@ -1,0 +1,25 @@
+id: voice-agent/contact-not-found-001
+input: "홍길동한테 전화해줘"
+dataset: default-contacts
+expected:
+  tool_calls:
+    mode: superset
+    calls:
+      - tool: search_contacts
+        params:
+          query: "홍길동"
+  output_contains_any:
+    - "찾을 수 없"
+    - "없는"
+    - "못 찾"
+    - "없습니다"
+  constraints:
+    max_turns: 5
+    max_toolcalls: 2
+  llm_grader:
+    rubric: response-quality.md
+    min_score: 0.7
+metadata:
+  category: contact
+  description: "존재하지 않는 연락처 처리"
+  tags: [contact, not-found]

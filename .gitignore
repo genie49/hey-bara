@@ -3,7 +3,7 @@
 .gradle
 /local.properties
 /.idea
-/build
+**/build
 /captures
 .externalNativeBuild
 .cxx
@@ -33,6 +33,12 @@ app/src/main/assets/models/wakeword/*.pv
 google-services.json
 local.properties
 secrets.properties
+
+# Evaluation
+evaluation/cache/
+evaluation/results/
+evaluation/evaluation/
+.env
 
 # OS
 .DS_Store
