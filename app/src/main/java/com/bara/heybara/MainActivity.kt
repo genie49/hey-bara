@@ -17,6 +17,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -27,9 +31,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.Image
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import com.bara.heybara.domain.session.SessionState
@@ -136,10 +143,15 @@ fun MainScreen(viewModel: MainViewModel, overrideHasApiKey: Boolean? = null) {
                 )
                 StatusBadge(state)
             }
-            IconButton(onClick = {
-                context.startActivity(Intent(context, SettingsActivity::class.java))
-            }) {
-                Text("\u2699", fontSize = 20.sp)
+            Row {
+                IconButton(onClick = { /* TODO: Phase 3에서 HistoryActivity 연결 */ }) {
+                    Icon(Icons.Filled.History, contentDescription = "히스토리", tint = BaraColors.TextSecondary)
+                }
+                IconButton(onClick = {
+                    context.startActivity(Intent(context, SettingsActivity::class.java))
+                }) {
+                    Icon(Icons.Filled.Settings, contentDescription = "설정", tint = BaraColors.TextSecondary)
+                }
             }
         }
 
@@ -207,7 +219,7 @@ fun MainScreen(viewModel: MainViewModel, overrideHasApiKey: Boolean? = null) {
                     .size(44.dp)
                     .background(BaraColors.Coral, CircleShape)
             ) {
-                Text("\u2192", color = BaraColors.Background)
+                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "전송", tint = BaraColors.Background)
             }
         }
     }
@@ -256,11 +268,26 @@ fun MainScreenPreview() {
 fun ChatBubble(message: ChatMessage) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = if (message.isUser) Arrangement.End else Arrangement.Start
+        horizontalArrangement = if (message.isUser) Arrangement.End else Arrangement.Start,
+        verticalAlignment = Alignment.Bottom
     ) {
+        // AI 메시지: 카피바라 아바타
+        if (!message.isUser) {
+            Image(
+                painter = painterResource(R.drawable.bara_avatar),
+                contentDescription = "바라",
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(CircleShape)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+        }
         Surface(
             color = if (message.isUser) BaraColors.Coral else BaraColors.CardSurface,
-            shape = RoundedCornerShape(18.dp)
+            shape = if (message.isUser)
+                RoundedCornerShape(18.dp, 18.dp, 4.dp, 18.dp)
+            else
+                RoundedCornerShape(18.dp, 18.dp, 18.dp, 4.dp)
         ) {
             Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
                 Text(
