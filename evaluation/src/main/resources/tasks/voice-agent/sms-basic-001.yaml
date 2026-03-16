@@ -8,26 +8,17 @@ expected:
       - tool: search_contacts
         params:
           query: "엄마"
-      - tool: send_sms
-        params:
-          contact: "엄마"
-          phoneNumber: "010-1234-5678"
-          message: "regex:잘.*"
   output_contains_any:
     - "문자"
+    - "보낼까요"
     - "보내"
   constraints:
     max_turns: 5
     max_toolcalls: 3
-  state_check:
-    - key: "sms.last.contact"
-      expect: "엄마"
-    - key: "sms.last.message"
-      expect: "*"
   llm_grader:
     rubric: response-quality.md
     min_score: 0.7
 metadata:
   category: sms
-  description: "기본 문자 보내기"
+  description: "기본 문자 보내기 — 연락처 검색 후 확인 질문"
   tags: [sms, basic]
