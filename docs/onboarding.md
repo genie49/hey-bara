@@ -81,7 +81,16 @@ PORCUPINE_ACCESS_KEY=여기에_키_붙여넣기
 
 > `local.properties`는 `.gitignore`에 포함되어 git에 올라가지 않습니다.
 
-### 5-3. 커스텀 웨이크워드 모델
+### 5-3. 한국어 모델 파일 다운로드
+
+Porcupine 기본 모델은 영어이므로, 한국어 모델(.pv)을 별도로 다운로드해야 합니다 (~1MB, git 미추적):
+
+```bash
+curl -L -o app/src/main/assets/models/wakeword/porcupine_params_ko.pv \
+  "https://github.com/Picovoice/porcupine/raw/master/lib/common/porcupine_params_ko.pv"
+```
+
+### 5-4. 커스텀 웨이크워드 모델
 
 `hey-bara.ppn` 파일은 이미 `app/src/main/assets/models/wakeword/`에 포함되어 있습니다 (git 추적).
 

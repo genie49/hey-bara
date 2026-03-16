@@ -23,8 +23,9 @@
 *.bin
 app/src/main/assets/models/stt/tokens.txt
 
-# 웨이크워드 모델은 작아서(3KB) assets에 포함
+# 웨이크워드: ppn(3KB)은 포함, pv(1MB)는 다운로드
 !app/src/main/assets/models/wakeword/*.ppn
+app/src/main/assets/models/wakeword/*.pv
 
 # Keys and secrets
 *.jks

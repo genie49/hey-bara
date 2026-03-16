@@ -41,11 +41,13 @@ class VoiceAssistantService : Service() {
         // assets에서 내부 저장소로 모델 복사
         val wakeWordDir = File(filesDir, "models/wakeword")
         AssetCopier.copyIfNeeded(this, "models/wakeword/hey-bara.ppn", wakeWordDir)
+        AssetCopier.copyIfNeeded(this, "models/wakeword/porcupine_params_ko.pv", wakeWordDir)
 
         val keywordPath = File(wakeWordDir, "hey-bara.ppn").absolutePath
+        val modelPath = File(wakeWordDir, "porcupine_params_ko.pv").absolutePath
         val accessKey = BuildConfig.PORCUPINE_ACCESS_KEY
 
-        wakeWordDetector = PorcupineWakeWordDetector(this, accessKey, keywordPath)
+        wakeWordDetector = PorcupineWakeWordDetector(this, accessKey, keywordPath, modelPath)
         wakeWordDetector?.start {
             onWakeWordDetected()
         }

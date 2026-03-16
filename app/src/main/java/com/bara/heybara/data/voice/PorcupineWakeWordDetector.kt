@@ -9,7 +9,8 @@ import ai.picovoice.porcupine.PorcupineManagerCallback
 class PorcupineWakeWordDetector(
     private val context: Context,
     private val accessKey: String,
-    private val keywordPath: String  // path to custom "헤이 바라" .ppn file
+    private val keywordPath: String,  // .ppn 파일 경로
+    private val modelPath: String     // 한국어 모델(.pv) 경로
 ) : WakeWordDetector {
 
     private var porcupineManager: PorcupineManager? = null
@@ -18,6 +19,7 @@ class PorcupineWakeWordDetector(
         porcupineManager = PorcupineManager.Builder()
             .setAccessKey(accessKey)
             .setKeywordPath(keywordPath)
+            .setModelPath(modelPath)
             .setSensitivity(0.5f)
             .build(context, PorcupineManagerCallback { keywordIndex ->
                 if (keywordIndex >= 0) {
