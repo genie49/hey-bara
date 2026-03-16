@@ -1,10 +1,10 @@
-package com.bara.heybara.session
+package com.bara.heybara.domain.session
 
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import org.mockito.kotlin.*
-import com.bara.heybara.voice.*
+import com.bara.heybara.domain.voice.*
 
 class VoiceSessionTest {
 
@@ -71,5 +71,49 @@ class VoiceSessionTest {
     fun `cannot transition from IDLE to PROCESSING directly`() {
         session.onSpeechRecognized("test")
         assertEquals(SessionState.IDLE, session.currentState)
+    }
+
+    @Test
+    fun `onWakeWordDetected ignored when already LISTENING`() {
+        session.onWakeWordDetected()
+        assertEquals(SessionState.LISTENING, session.currentState)
+        session.onWakeWordDetected()
+        // beep은 최초 1회만 호출
+        verify(mockBeep, times(1)).playBeep(any())
+    }
+
+    @Test
+    fun `endSession clears lastRecognizedText`() {
+        session.onWakeWordDetected()
+        session.onSpeechRecognized("테스트")
+        assertEquals("테스트", session.lastRecognizedText)
+        session.endSession()
+        assertEquals("", session.lastRecognizedText)
+    }
+
+    @Test
+    fun `speakAndEnd calls tts speak`() {
+        session.onWakeWordDetected()
+        session.speakAndEnd("안녕하세요")
+        verify(mockTts).speak(eq("안녕하세요"), any())
+    }
+
+    @Test
+    fun `onStateChanged callback is invoked on transition`() {
+        val states = mutableListOf<SessionState>()
+        session.onStateChanged = { states.add(it) }
+        session.onWakeWordDetected()
+        session.onSpeechRecognized("테스트")
+        assertEquals(listOf(SessionState.LISTENING, SessionState.PROCESSING), states)
+    }
+
+    @Test
+    fun `onSpeechRecognized ignored when in PROCESSING`() {
+        session.onWakeWordDetected()
+        session.onSpeechRecognized("첫 번째")
+        assertEquals(SessionState.PROCESSING, session.currentState)
+        session.onSpeechRecognized("두 번째")
+        // PROCESSING 상태에서 무시되므로 첫 번째 텍스트 유지
+        assertEquals("첫 번째", session.lastRecognizedText)
     }
 }

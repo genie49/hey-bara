@@ -1,4 +1,6 @@
-package com.bara.heybara.voice
+package com.bara.heybara.data.voice
+
+import com.bara.heybara.domain.voice.SpeechRecognizer
 
 import com.k2fsa.sherpa.onnx.OnlineModelConfig
 import com.k2fsa.sherpa.onnx.OnlineRecognizer

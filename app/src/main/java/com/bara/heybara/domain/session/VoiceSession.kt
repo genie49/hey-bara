@@ -1,6 +1,6 @@
-package com.bara.heybara.session
+package com.bara.heybara.domain.session
 
-import com.bara.heybara.voice.*
+import com.bara.heybara.domain.voice.*
 
 class VoiceSession(
     private val recognizer: SpeechRecognizer,

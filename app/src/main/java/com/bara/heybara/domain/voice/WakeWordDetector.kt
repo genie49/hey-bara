@@ -1,4 +1,4 @@
-package com.bara.heybara.voice
+package com.bara.heybara.domain.voice
 
 interface WakeWordDetector {
     fun start(onDetected: () -> Unit)

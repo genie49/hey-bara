@@ -1,4 +1,6 @@
-package com.bara.heybara.voice
+package com.bara.heybara.data.voice
+
+import com.bara.heybara.domain.voice.TtsEngine
 
 import android.content.Context
 import android.speech.tts.TextToSpeech

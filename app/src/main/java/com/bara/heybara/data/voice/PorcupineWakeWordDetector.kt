@@ -1,4 +1,6 @@
-package com.bara.heybara.voice
+package com.bara.heybara.data.voice
+
+import com.bara.heybara.domain.voice.WakeWordDetector
 
 import android.content.Context
 import ai.picovoice.porcupine.PorcupineManager
