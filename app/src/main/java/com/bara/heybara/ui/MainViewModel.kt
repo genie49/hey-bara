@@ -21,6 +21,9 @@ class MainViewModel : ViewModel() {
     private val _sttPartialText = MutableStateFlow("")
     val sttPartialText: StateFlow<String> = _sttPartialText
 
+    private val _hasApiKey = MutableStateFlow(false)
+    val hasApiKey: StateFlow<Boolean> = _hasApiKey
+
     fun updateState(state: SessionState) {
         _sessionState.value = state
     }
@@ -31,5 +34,9 @@ class MainViewModel : ViewModel() {
 
     fun updatePartialText(text: String) {
         _sttPartialText.value = text
+    }
+
+    fun updateApiKeyStatus(hasKey: Boolean) {
+        _hasApiKey.value = hasKey
     }
 }

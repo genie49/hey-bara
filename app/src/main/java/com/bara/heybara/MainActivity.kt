@@ -21,7 +21,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,6 +63,14 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        // 설정에서 돌아왔을 때 API Key 상태 갱신
+        val hasKey = SecurePreferences(this).getGeminiApiKey() != null
+        viewModel.updateApiKeyStatus(hasKey)
+        if (hasKey) startVoiceService()
+    }
+
     private fun requestPermissionsAndStart() {
         val required = mutableListOf(Manifest.permission.RECORD_AUDIO)
         // Android 13+에서는 알림 권한도 필요
@@ -92,14 +99,13 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun MainScreen(viewModel: MainViewModel, hasApiKey: Boolean? = null) {
+fun MainScreen(viewModel: MainViewModel, overrideHasApiKey: Boolean? = null) {
     val state by viewModel.sessionState.collectAsState()
     val messages by viewModel.messages.collectAsState()
+    val hasApiKey by viewModel.hasApiKey.collectAsState()
     val context = LocalContext.current
-    // Preview에서는 hasApiKey 파라미터 사용, 실제로는 SecurePreferences 조회
-    val apiKeyAvailable = hasApiKey ?: remember {
-        try { SecurePreferences(context).getGeminiApiKey() != null } catch (_: Exception) { false }
-    }
+    // Preview에서는 overrideHasApiKey 사용, 실제로는 ViewModel 상태
+    val apiKeyAvailable = overrideHasApiKey ?: hasApiKey
 
     Column(
         modifier = Modifier
@@ -233,7 +239,7 @@ fun MainScreenPreview() {
         addMessage(ChatMessage("엄마한테 전화해라고 하셨나요?", isUser = false, timestamp = "오후 2:30"))
     }
     HeyBaraTheme {
-        MainScreen(viewModel, hasApiKey = true)
+        MainScreen(viewModel, overrideHasApiKey = true)
     }
 }
 
