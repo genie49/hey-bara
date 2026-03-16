@@ -5,30 +5,50 @@ import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.bara.heybara.BaraApp
 import com.bara.heybara.BuildConfig
 import com.bara.heybara.R
-import com.bara.heybara.config.SystemMessages
+import com.bara.heybara.data.agent.KoogAgentEngine
+import com.bara.heybara.data.settings.SecurePreferences
 import com.bara.heybara.data.voice.AndroidTtsEngine
 import com.bara.heybara.data.voice.SoundPoolBeepPlayer
 import com.bara.heybara.data.voice.SherpaSpeechRecognizer
+import com.bara.heybara.domain.agent.AgentEngine
 import com.bara.heybara.domain.session.SessionState
 import com.bara.heybara.domain.session.VoiceSession
 import com.bara.heybara.domain.voice.WakeWordDetector
 import com.bara.heybara.data.voice.PorcupineWakeWordDetector
 import com.bara.heybara.ui.OverlayBubbleView
 import com.bara.heybara.util.AssetCopier
+import kotlinx.coroutines.*
 import java.io.File
 
 class VoiceAssistantService : Service() {
 
+    companion object {
+        private const val TAG = "VoiceAssistantService"
+    }
+
     private var wakeWordDetector: WakeWordDetector? = null
     private var session: VoiceSession? = null
     private var overlay: OverlayBubbleView? = null
+    private var agentEngine: AgentEngine? = null
+    private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     override fun onCreate() {
         super.onCreate()
+
+        // API Key로 AgentEngine 초기화
+        val apiKey = SecurePreferences(this).getGeminiApiKey()
+        if (apiKey != null) {
+            agentEngine = KoogAgentEngine(apiKey)
+            Log.d(TAG, "KoogAgentEngine 초기화 완료")
+        } else {
+            Log.w(TAG, "API Key 없음, AgentEngine 미초기화")
+        }
+
         startForeground(
             1,
             buildNotification("대기 중 — \"헤이 바라\"로 호출"),
@@ -67,7 +87,7 @@ class VoiceAssistantService : Service() {
         val tts = AndroidTtsEngine(this)
         val beep = SoundPoolBeepPlayer(this)
 
-        session = VoiceSession(recognizer, tts, beep).apply {
+        session = VoiceSession(recognizer, tts, beep, agentEngine).apply {
             onStateChanged = { state ->
                 when (state) {
                     SessionState.IDLE -> {
@@ -90,15 +110,19 @@ class VoiceAssistantService : Service() {
                 }
             }
             onSpeechResult = { text -> this@VoiceAssistantService.onSpeechResult(text) }
+            onActionExecute = { action ->
+                Log.d(TAG, "액션 실행: $action")
+            }
         }
         session?.onWakeWordDetected()
     }
 
-    // MVP: 인식된 텍스트를 에코백
+    // STT 결과 수신 → AgentEngine으로 처리
     private fun onSpeechResult(text: String) {
         overlay?.updateState(SessionState.PROCESSING, text)
-        val echoText = "${text}${SystemMessages.ECHO_PREFIX}"
-        session?.speakAndEnd(echoText)
+        serviceScope.launch {
+            session?.processWithAgent()
+        }
     }
 
     private fun getModelDir(): String {
@@ -133,6 +157,8 @@ class VoiceAssistantService : Service() {
     override fun onDestroy() {
         wakeWordDetector?.release()
         session?.endSession()
+        agentEngine?.release()
+        serviceScope.cancel()
         super.onDestroy()
     }
 }

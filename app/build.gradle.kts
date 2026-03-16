@@ -53,6 +53,16 @@ android {
         buildConfig = true
     }
 
+    packaging {
+        resources {
+            excludes += listOf(
+                "META-INF/INDEX.LIST",
+                "META-INF/DEPENDENCIES",
+                "META-INF/io.netty.versions.properties"
+            )
+        }
+    }
+
 }
 
 dependencies {

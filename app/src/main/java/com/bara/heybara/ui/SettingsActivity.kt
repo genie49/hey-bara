@@ -128,3 +128,43 @@ fun SettingsScreen(securePrefs: SecurePreferences, onBack: () -> Unit) {
         }
     }
 }
+
+@Preview(showBackground = true, widthDp = 360, heightDp = 720)
+@Composable
+fun SettingsScreenPreview() {
+    HeyBaraTheme {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .padding(24.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                TextButton(onClick = {}) {
+                    Text("\u2190 뒤로", color = BaraColors.TextPrimary)
+                }
+                Text("설정", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = BaraColors.TextPrimary)
+            }
+            Spacer(modifier = Modifier.height(32.dp))
+            Text("Gemini API Key", fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = BaraColors.TextPrimary)
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("현재 저장된 키: AIza...7x9Q", color = BaraColors.TextSecondary, fontSize = 14.sp)
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = "",
+                onValueChange = {},
+                placeholder = { Text("API Key 입력") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                singleLine = true
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(onClick = {}, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
+                Text("저장")
+            }
+        }
+    }
+}
