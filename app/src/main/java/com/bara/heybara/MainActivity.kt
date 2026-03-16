@@ -92,12 +92,14 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun MainScreen(viewModel: MainViewModel) {
+fun MainScreen(viewModel: MainViewModel, hasApiKey: Boolean? = null) {
     val state by viewModel.sessionState.collectAsState()
     val messages by viewModel.messages.collectAsState()
     val context = LocalContext.current
-    val securePrefs = remember { SecurePreferences(context) }
-    val hasApiKey = securePrefs.getGeminiApiKey() != null
+    // Preview에서는 hasApiKey 파라미터 사용, 실제로는 SecurePreferences 조회
+    val apiKeyAvailable = hasApiKey ?: remember {
+        try { SecurePreferences(context).getGeminiApiKey() != null } catch (_: Exception) { false }
+    }
 
     Column(
         modifier = Modifier
@@ -133,7 +135,7 @@ fun MainScreen(viewModel: MainViewModel) {
         }
 
         // 채팅 영역
-        if (!hasApiKey) {
+        if (!apiKeyAvailable) {
             // API Key 미설정 안내
             Box(
                 modifier = Modifier
@@ -231,7 +233,7 @@ fun MainScreenPreview() {
         addMessage(ChatMessage("엄마한테 전화해라고 하셨나요?", isUser = false, timestamp = "오후 2:30"))
     }
     HeyBaraTheme {
-        MainScreen(viewModel)
+        MainScreen(viewModel, hasApiKey = true)
     }
 }
 
