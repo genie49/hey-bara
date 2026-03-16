@@ -4,8 +4,14 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -46,86 +52,182 @@ fun SettingsScreen(securePrefs: SecurePreferences, onBack: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(BaraColors.Background)
             .statusBarsPadding()
-            .padding(24.dp)
     ) {
         // 헤더
         Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+                .padding(horizontal = 24.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            TextButton(onClick = onBack) {
-                Text("\u2190 뒤로", color = BaraColors.TextPrimary)
+            IconButton(onClick = onBack, modifier = Modifier.size(22.dp)) {
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "뒤로",
+                    tint = BaraColors.TextPrimary
+                )
             }
-            Text("설정", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = BaraColors.TextPrimary)
-        }
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        // Gemini API Key 섹션
-        Text(
-            "Gemini API Key",
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 16.sp,
-            color = BaraColors.TextPrimary
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-
-        if (hasSavedKey) {
-            val key = securePrefs.getGeminiApiKey() ?: ""
-            val masked = if (key.length > 8) key.take(4) + "..." + key.takeLast(4) else "****"
             Text(
-                "현재 저장된 키: $masked",
-                color = BaraColors.TextSecondary,
-                fontSize = 14.sp
+                "설정",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = BaraColors.TextPrimary
             )
-            Spacer(modifier = Modifier.height(8.dp))
         }
 
-        OutlinedTextField(
-            value = apiKeyInput,
-            onValueChange = { apiKeyInput = it },
-            placeholder = { Text("API Key 입력") },
-            visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            singleLine = true
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Button(
-            onClick = {
-                if (apiKeyInput.isNotBlank()) {
-                    securePrefs.setGeminiApiKey(apiKeyInput.trim())
-                    apiKeyInput = ""
-                    hasSavedKey = true
-                    savedMessage = "API Key가 저장되었습니다"
-                }
-            },
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp)
+        // 스크롤 가능한 콘텐츠
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            Text("저장")
-        }
-
-        savedMessage?.let {
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(it, color = BaraColors.Green, fontSize = 14.sp)
-        }
-
-        if (hasSavedKey) {
-            Spacer(modifier = Modifier.height(8.dp))
-            TextButton(
-                onClick = {
-                    securePrefs.clearGeminiApiKey()
-                    hasSavedKey = false
-                    savedMessage = "API Key가 삭제되었습니다"
+            // Gemini API 키 섹션
+            SettingsSection(label = "Gemini API 키") {
+                if (hasSavedKey) {
+                    // 키가 있으면: 마스킹 표시 + X 삭제 버튼
+                    val key = securePrefs.getGeminiApiKey() ?: ""
+                    val masked = if (key.length > 8) key.take(4) + "..." + key.takeLast(4) else "****"
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("\uD83D\uDD11", fontSize = 16.sp)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(masked, color = BaraColors.TextPrimary, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                        IconButton(
+                            onClick = {
+                                securePrefs.clearGeminiApiKey()
+                                hasSavedKey = false
+                            },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(Icons.Default.Close, contentDescription = "삭제", tint = BaraColors.TextTertiary, modifier = Modifier.size(18.dp))
+                        }
+                    }
+                } else {
+                    // 키가 없으면: 입력 필드 + 저장 버튼
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = apiKeyInput,
+                            onValueChange = { apiKeyInput = it },
+                            placeholder = { Text("API Key 입력", color = BaraColors.TextTertiary) },
+                            visualTransformation = PasswordVisualTransformation(),
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            singleLine = true
+                        )
+                        Button(
+                            onClick = {
+                                if (apiKeyInput.isNotBlank()) {
+                                    securePrefs.setGeminiApiKey(apiKeyInput.trim())
+                                    apiKeyInput = ""
+                                    hasSavedKey = true
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = BaraColors.Coral)
+                        ) {
+                            Text("저장")
+                        }
+                    }
                 }
-            ) {
-                Text("API Key 삭제", color = BaraColors.Coral)
+            }
+
+            // AI 엔진 섹션 (Phase 3+)
+            SettingsSection(label = "AI 엔진") {
+                Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                    SettingsOptionRow(
+                        title = "온디바이스 (Gemma 3n)",
+                        subtitle = "오프라인, 무료, 프라이버시 보호",
+                        enabled = false
+                    )
+                    HorizontalDivider(color = BaraColors.Background, thickness = 1.dp)
+                    SettingsOptionRow(
+                        title = "클라우드 (Gemini API)",
+                        subtitle = "더 정확, 인터넷 필요, 무료 티어",
+                        enabled = true
+                    )
+                }
+            }
+
+            // 웨이크워드 감도 섹션
+            SettingsSection(label = "웨이크워드 감도") {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text("\"헤이 바라\" 감도", color = BaraColors.TextPrimary, fontSize = 14.sp)
+                        Spacer(modifier = Modifier.weight(1f))
+                        Text("보통", color = BaraColors.Coral, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                    // TODO: 슬라이더 연결
+                    Slider(
+                        value = 0.5f,
+                        onValueChange = {},
+                        colors = SliderDefaults.colors(
+                            thumbColor = BaraColors.Coral,
+                            activeTrackColor = BaraColors.Coral
+                        )
+                    )
+                }
             }
         }
+    }
+}
+
+// 섹션 카드 컴포넌트
+@Composable
+fun SettingsSection(label: String, content: @Composable () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+            label,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = BaraColors.TextTertiary,
+            letterSpacing = 0.5.sp
+        )
+        Surface(
+            color = BaraColors.CardSurface,
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Box(modifier = Modifier.padding(16.dp)) {
+                content()
+            }
+        }
+    }
+}
+
+// AI 엔진 옵션 행
+@Composable
+fun SettingsOptionRow(title: String, subtitle: String, enabled: Boolean) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, color = BaraColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            Text(subtitle, color = BaraColors.TextTertiary, fontSize = 12.sp)
+        }
+        RadioButton(
+            selected = enabled,
+            onClick = { /* Phase 3+ */ },
+            colors = RadioButtonDefaults.colors(selectedColor = BaraColors.Coral)
+        )
     }
 }
 
@@ -133,37 +235,63 @@ fun SettingsScreen(securePrefs: SecurePreferences, onBack: () -> Unit) {
 @Composable
 fun SettingsScreenPreview() {
     HeyBaraTheme {
+        // Preview용: SecurePreferences 없이 정적 UI
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .background(BaraColors.Background)
                 .statusBarsPadding()
-                .padding(24.dp)
         ) {
             Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+                    .padding(horizontal = 24.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                TextButton(onClick = {}) {
-                    Text("\u2190 뒤로", color = BaraColors.TextPrimary)
-                }
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "뒤로", tint = BaraColors.TextPrimary)
                 Text("설정", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = BaraColors.TextPrimary)
             }
-            Spacer(modifier = Modifier.height(32.dp))
-            Text("Gemini API Key", fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = BaraColors.TextPrimary)
-            Spacer(modifier = Modifier.height(8.dp))
-            Text("현재 저장된 키: AIza...7x9Q", color = BaraColors.TextSecondary, fontSize = 14.sp)
-            Spacer(modifier = Modifier.height(8.dp))
-            OutlinedTextField(
-                value = "",
-                onValueChange = {},
-                placeholder = { Text("API Key 입력") },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                singleLine = true
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Button(onClick = {}, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
-                Text("저장")
+
+            Column(
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(24.dp)
+            ) {
+                SettingsSection(label = "Gemini API 키") {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("\uD83D\uDD11", fontSize = 16.sp)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text("AIza...7x9Q", color = BaraColors.TextPrimary, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                        Icon(Icons.Default.Close, contentDescription = "삭제", tint = BaraColors.TextTertiary, modifier = Modifier.size(18.dp))
+                    }
+                }
+
+                SettingsSection(label = "AI 엔진") {
+                    Column {
+                        SettingsOptionRow("온디바이스 (Gemma 3n)", "오프라인, 무료, 프라이버시 보호", false)
+                        HorizontalDivider(color = BaraColors.Background, thickness = 1.dp)
+                        SettingsOptionRow("클라우드 (Gemini API)", "더 정확, 인터넷 필요, 무료 티어", true)
+                    }
+                }
+
+                SettingsSection(label = "웨이크워드 감도") {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            Text("\"헤이 바라\" 감도", color = BaraColors.TextPrimary, fontSize = 14.sp)
+                            Spacer(modifier = Modifier.weight(1f))
+                            Text("보통", color = BaraColors.Coral, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                        Slider(
+                            value = 0.5f,
+                            onValueChange = {},
+                            colors = SliderDefaults.colors(thumbColor = BaraColors.Coral, activeTrackColor = BaraColors.Coral)
+                        )
+                    }
+                }
             }
         }
     }
