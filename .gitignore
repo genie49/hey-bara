@@ -1,0 +1,38 @@
+# Android
+*.iml
+.gradle
+/local.properties
+/.idea
+/build
+/captures
+.externalNativeBuild
+.cxx
+*.apk
+*.aab
+*.dex
+*.class
+*.ap_
+*.aar
+
+# Kotlin
+*.kotlin_module
+
+# Model files (too large for git)
+*.onnx
+*.ppn
+*.bin
+
+# Keys and secrets
+*.jks
+*.keystore
+google-services.json
+local.properties
+secrets.properties
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+*.swp
+*~
