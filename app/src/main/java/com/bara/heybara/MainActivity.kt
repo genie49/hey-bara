@@ -21,6 +21,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -173,6 +176,7 @@ fun MainScreen(viewModel: MainViewModel, overrideHasApiKey: Boolean? = null) {
         }
 
         // 입력 바
+        var inputText by remember { mutableStateOf("") }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -182,8 +186,8 @@ fun MainScreen(viewModel: MainViewModel, overrideHasApiKey: Boolean? = null) {
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             TextField(
-                value = "",
-                onValueChange = {},
+                value = inputText,
+                onValueChange = { inputText = it },
                 placeholder = { Text("메시지를 입력하세요...") },
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(22.dp),
@@ -193,7 +197,12 @@ fun MainScreen(viewModel: MainViewModel, overrideHasApiKey: Boolean? = null) {
                 )
             )
             IconButton(
-                onClick = {},
+                onClick = {
+                    if (inputText.isNotBlank()) {
+                        viewModel.sendMessage(inputText.trim(), context)
+                        inputText = ""
+                    }
+                },
                 modifier = Modifier
                     .size(44.dp)
                     .background(BaraColors.Coral, CircleShape)
