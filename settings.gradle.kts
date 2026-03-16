@@ -24,3 +24,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "Hey Bara"
 include(":app")
+include(":evaluation")

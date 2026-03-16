@@ -34,6 +34,11 @@ google-services.json
 local.properties
 secrets.properties
 
+# Evaluation
+evaluation/cache/
+evaluation/results/
+.env
+
 # OS
 .DS_Store
 Thumbs.db
