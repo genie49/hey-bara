@@ -82,7 +82,12 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestPermissionsAndStart() {
-        val required = mutableListOf(Manifest.permission.RECORD_AUDIO)
+        val required = mutableListOf(
+            Manifest.permission.RECORD_AUDIO,
+            Manifest.permission.CALL_PHONE,
+            Manifest.permission.SEND_SMS,
+            Manifest.permission.READ_CONTACTS
+        )
         // Android 13+에서는 알림 권한도 필요
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             required.add(Manifest.permission.POST_NOTIFICATIONS)
