@@ -80,6 +80,19 @@ SMS/전화/접근성 권한 정책상 스토어 등록 불가.
 
 ---
 
+## 빌드 준비
+
+### Sherpa-ONNX AAR
+
+Sherpa-ONNX는 Maven에 배포되지 않아 AAR을 직접 다운로드해야 합니다:
+
+```bash
+curl -L -o app/libs/sherpa-onnx-1.12.29.aar \
+  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.12.29/sherpa-onnx-1.12.29.aar"
+```
+
+---
+
 ## 문서
 
 - [architecture.md](docs/architecture.md) — 전체 아키텍처 및 기능 상세
