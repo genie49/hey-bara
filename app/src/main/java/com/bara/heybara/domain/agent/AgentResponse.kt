@@ -7,6 +7,6 @@ data class AgentResponse(
 )
 
 sealed class AgentAction {
-    data class Call(val contact: String) : AgentAction()
-    // Phase 3에서 추가: Sms, Kakao, Calendar, Task, Notification
+    data class Call(val contact: String, val phoneNumber: String?) : AgentAction()
+    data class SendSms(val contact: String, val phoneNumber: String?, val message: String) : AgentAction()
 }

@@ -143,7 +143,7 @@ class VoiceSessionTest {
     @Test
     fun `processWithAgent transitions to CONFIRMING when confirmation required`() = runTest {
         whenever(mockAgent.process("엄마한테 전화해")).thenReturn(
-            AgentResponse("엄마한테 전화를 걸까요?", AgentAction.Call("엄마"), true)
+            AgentResponse("엄마한테 전화를 걸까요?", AgentAction.Call("엄마", null), true)
         )
         session.onWakeWordDetected()
         session.onSpeechRecognized("엄마한테 전화해")
@@ -154,7 +154,7 @@ class VoiceSessionTest {
     @Test
     fun `processWithAgent speaks response when confirmation required`() = runTest {
         whenever(mockAgent.process("엄마한테 전화해")).thenReturn(
-            AgentResponse("엄마한테 전화를 걸까요?", AgentAction.Call("엄마"), true)
+            AgentResponse("엄마한테 전화를 걸까요?", AgentAction.Call("엄마", null), true)
         )
         session.onWakeWordDetected()
         session.onSpeechRecognized("엄마한테 전화해")
@@ -196,13 +196,13 @@ class VoiceSessionTest {
         var executedAction: AgentAction? = null
         session.onActionExecute = { executedAction = it }
         whenever(mockAgent.process("엄마한테 전화해")).thenReturn(
-            AgentResponse("엄마한테 전화를 걸까요?", AgentAction.Call("엄마"), true)
+            AgentResponse("엄마한테 전화를 걸까요?", AgentAction.Call("엄마", null), true)
         )
         session.onWakeWordDetected()
         session.onSpeechRecognized("엄마한테 전화해")
         session.processWithAgent()
         session.confirmAction()
-        assertEquals(AgentAction.Call("엄마"), executedAction)
+        assertEquals(AgentAction.Call("엄마", null), executedAction)
         assertEquals(SessionState.IDLE, session.currentState)
     }
 

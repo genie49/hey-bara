@@ -100,7 +100,7 @@ class KoogAgentEngine(
                 val contact = extractContact(text)
                 AgentResponse(
                     text = "${contact}한테 전화를 걸까요?",
-                    action = AgentAction.Call(contact),
+                    action = AgentAction.Call(contact, null),
                     requiresConfirmation = true
                 )
             } else {
