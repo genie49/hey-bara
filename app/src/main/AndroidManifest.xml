@@ -38,6 +38,10 @@
             android:name=".ui.SettingsActivity"
             android:exported="false" />
 
+        <activity
+            android:name=".ui.HistoryActivity"
+            android:exported="false" />
+
         <service
             android:name=".service.VoiceAssistantService"
             android:foregroundServiceType="microphone"

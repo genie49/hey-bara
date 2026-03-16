@@ -44,6 +44,7 @@ import com.bara.heybara.service.VoiceAssistantService
 import com.bara.heybara.data.settings.SecurePreferences
 import com.bara.heybara.ui.ChatMessage
 import com.bara.heybara.ui.MainViewModel
+import com.bara.heybara.ui.HistoryActivity
 import com.bara.heybara.ui.SettingsActivity
 import com.bara.heybara.ui.theme.BaraColors
 import com.bara.heybara.ui.theme.HeyBaraTheme
@@ -149,7 +150,9 @@ fun MainScreen(viewModel: MainViewModel, overrideHasApiKey: Boolean? = null) {
                 StatusBadge(state)
             }
             Row {
-                IconButton(onClick = { /* TODO: Phase 3에서 HistoryActivity 연결 */ }) {
+                IconButton(onClick = {
+                    context.startActivity(Intent(context, HistoryActivity::class.java))
+                }) {
                     Icon(Icons.Filled.History, contentDescription = "히스토리", tint = BaraColors.TextSecondary)
                 }
                 IconButton(onClick = {
