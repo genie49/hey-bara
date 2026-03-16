@@ -7,6 +7,7 @@ import android.content.pm.ServiceInfo
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.bara.heybara.BaraApp
+import com.bara.heybara.BuildConfig
 import com.bara.heybara.R
 import com.bara.heybara.config.SystemMessages
 import com.bara.heybara.data.voice.AndroidTtsEngine
@@ -15,7 +16,10 @@ import com.bara.heybara.data.voice.SherpaSpeechRecognizer
 import com.bara.heybara.domain.session.SessionState
 import com.bara.heybara.domain.session.VoiceSession
 import com.bara.heybara.domain.voice.WakeWordDetector
+import com.bara.heybara.data.voice.PorcupineWakeWordDetector
 import com.bara.heybara.ui.OverlayBubbleView
+import com.bara.heybara.util.AssetCopier
+import java.io.File
 
 class VoiceAssistantService : Service() {
 
@@ -34,7 +38,14 @@ class VoiceAssistantService : Service() {
     }
 
     private fun startWakeWordDetection() {
-        // TODO: Porcupine access key와 모델 경로 설정 (BuildConfig에서 가져올 예정)
+        // assets에서 내부 저장소로 모델 복사
+        val wakeWordDir = File(filesDir, "models/wakeword")
+        AssetCopier.copyIfNeeded(this, "models/wakeword/hey-bara.ppn", wakeWordDir)
+
+        val keywordPath = File(wakeWordDir, "hey-bara.ppn").absolutePath
+        val accessKey = BuildConfig.PORCUPINE_ACCESS_KEY
+
+        wakeWordDetector = PorcupineWakeWordDetector(this, accessKey, keywordPath)
         wakeWordDetector?.start {
             onWakeWordDetected()
         }
@@ -89,7 +100,9 @@ class VoiceAssistantService : Service() {
     }
 
     private fun getModelDir(): String {
-        return "${filesDir.absolutePath}/models/stt"
+        val sttDir = File(filesDir, "models/stt")
+        AssetCopier.copyDirIfNeeded(this, "models/stt", sttDir)
+        return sttDir.absolutePath
     }
 
     private fun buildNotification(text: String): Notification {

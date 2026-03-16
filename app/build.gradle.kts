@@ -19,6 +19,12 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField(
+            "String",
+            "PORCUPINE_ACCESS_KEY",
+            "\"${project.findProperty("PORCUPINE_ACCESS_KEY") ?: ""}\""
+        )
     }
 
     buildTypes {
@@ -36,7 +42,9 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
+
 }
 
 dependencies {

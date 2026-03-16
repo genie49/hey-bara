@@ -22,6 +22,9 @@
 *.ppn
 *.bin
 
+# 웨이크워드 모델은 작아서(3KB) assets에 포함
+!app/src/main/assets/models/wakeword/*.ppn
+
 # Keys and secrets
 *.jks
 *.keystore
