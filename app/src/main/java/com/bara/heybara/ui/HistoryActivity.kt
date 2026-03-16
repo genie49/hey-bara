@@ -6,6 +6,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -53,6 +55,7 @@ class HistoryActivity : ComponentActivity() {
 @Composable
 fun HistoryScreen(repo: RoomConversationRepository? = null, onBack: () -> Unit = {}, previewData: List<Conversation>? = null) {
     val conversations = remember { mutableStateOf<List<Conversation>>(emptyList()) }
+    val selectedConversation = remember { mutableStateOf<Conversation?>(null) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
@@ -63,6 +66,30 @@ fun HistoryScreen(repo: RoomConversationRepository? = null, onBack: () -> Unit =
                 conversations.value = repo?.getAll() ?: emptyList()
             }
         }
+    }
+
+    // 대화 전문 다이얼로그
+    selectedConversation.value?.let { conv ->
+        AlertDialog(
+            onDismissRequest = { selectedConversation.value = null },
+            title = { Text(conv.topic, fontWeight = FontWeight.Bold) },
+            text = {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState())
+                ) {
+                    if (conv.transcript.isNotBlank()) {
+                        Text(conv.transcript, fontSize = 14.sp, color = BaraColors.TextPrimary)
+                    } else {
+                        Text("대화 내용이 없습니다", color = BaraColors.TextTertiary)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { selectedConversation.value = null }) {
+                    Text("닫기")
+                }
+            }
+        )
     }
 
     Column(
@@ -123,7 +150,9 @@ fun HistoryScreen(repo: RoomConversationRepository? = null, onBack: () -> Unit =
                         )
                     }
                     items(items) { conversation ->
-                        HistoryItem(conversation)
+                        HistoryItem(conversation, onTap = {
+                            selectedConversation.value = conversation
+                        })
                     }
                 }
             }
@@ -132,7 +161,7 @@ fun HistoryScreen(repo: RoomConversationRepository? = null, onBack: () -> Unit =
 }
 
 @Composable
-fun HistoryItem(conversation: Conversation) {
+fun HistoryItem(conversation: Conversation, onTap: () -> Unit = {}) {
     val (icon, iconColor) = getCategoryStyle(conversation.category)
     val timeFormat = SimpleDateFormat("a h:mm", Locale.KOREAN)
     val timeStr = timeFormat.format(Date(conversation.timestamp))
@@ -141,7 +170,8 @@ fun HistoryItem(conversation: Conversation) {
     Surface(
         color = BaraColors.CardSurface,
         shape = RoundedCornerShape(16.dp),
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth(),
+        onClick = onTap
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
