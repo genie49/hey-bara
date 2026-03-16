@@ -41,11 +41,12 @@ class Judge(apiKey: String, private val model: String = "gemini-3.1-pro-preview"
             .responseMimeType("application/json")
             .build()
 
-        val response = client.models.generateContent(model, prompt, config)
-        val text = response.text()?.trim()
-            ?: error("Judge: LLM returned empty response")
-
-        return json.decodeFromString<JudgeVerdict>(text)
+        return retryWithBackoff(maxRetries = 3) {
+            val response = client.models.generateContent(model, prompt, config)
+            val text = response.text()?.trim()
+                ?: error("Judge: LLM returned empty response")
+            json.decodeFromString<JudgeVerdict>(text)
+        }
     }
 
     private fun buildPrompt(goal: String, conversationHistory: List<Message>): String = buildString {

@@ -1,5 +1,6 @@
 package com.bara.evaluation.graders
 
+import com.bara.evaluation.core.retryWithBackoff
 import com.bara.evaluation.core.*
 import com.google.genai.Client
 import com.google.genai.types.GenerateContentConfig
@@ -35,7 +36,7 @@ class LlmGrader(
      * @param output 에이전트 출력
      * @param toolCalls 에이전트가 호출한 tool 목록
      */
-    fun grade(
+    suspend fun grade(
         expected: LlmGraderExpected,
         input: String,
         output: String,
@@ -64,7 +65,7 @@ class LlmGrader(
      * @param minScore 통과 최소 점수
      * @param messages 대화 전체 메시지 목록
      */
-    fun gradeConversation(
+    suspend fun gradeConversation(
         rubricFile: String,
         minScore: Double,
         messages: List<Message>,
@@ -163,18 +164,20 @@ class LlmGrader(
         appendLine("""{"score": 0.0~1.0, "reasoning": "평가 근거를 한국어로 작성"}""")
     }
 
-    /** Gemini API 호출 및 결과 파싱 */
-    private fun callLlm(model: String, temperature: Float, prompt: String): LlmGraderOutput {
-        val config = GenerateContentConfig.builder()
-            .temperature(temperature)
-            .responseMimeType("application/json")
-            .build()
+    /** Gemini API 호출 및 결과 파싱 (retry 포함) */
+    private suspend fun callLlm(model: String, temperature: Float, prompt: String): LlmGraderOutput {
+        return retryWithBackoff(maxRetries = 3) {
+            val config = GenerateContentConfig.builder()
+                .temperature(temperature)
+                .responseMimeType("application/json")
+                .build()
 
-        val response = client.models.generateContent(model, prompt, config)
-        val text = response.text()?.trim()
-            ?: error("LLM returned empty response")
+            val response = client.models.generateContent(model, prompt, config)
+            val text = response.text()?.trim()
+                ?: error("LLM returned empty response")
 
-        return json.decodeFromString<LlmGraderOutput>(text)
+            json.decodeFromString<LlmGraderOutput>(text)
+        }
     }
 
     companion object {

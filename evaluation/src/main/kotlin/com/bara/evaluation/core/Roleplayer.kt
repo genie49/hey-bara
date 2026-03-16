@@ -28,9 +28,11 @@ class Roleplayer(apiKey: String, private val model: String = "gemini-3.1-pro-pre
             .temperature(0.7f)
             .build()
 
-        val response = client.models.generateContent(model, prompt, config)
-        return response.text()?.trim()
-            ?: error("Roleplayer: LLM returned empty response")
+        return retryWithBackoff(maxRetries = 3) {
+            val response = client.models.generateContent(model, prompt, config)
+            response.text()?.trim()
+                ?: error("Roleplayer: LLM returned empty response")
+        }
     }
 
     private fun buildPrompt(persona: String, conversationHistory: List<Message>): String = buildString {

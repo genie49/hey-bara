@@ -14,6 +14,28 @@ import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.int
 import kotlinx.coroutines.runBlocking
+import java.io.File
+import java.util.Properties
+
+/** local.properties에서 API 키를 읽는다 */
+private fun loadApiKeyFromLocalProperties(): String? {
+    // 프로젝트 루트의 local.properties 탐색
+    val candidates = listOf(
+        File("local.properties"),
+        File("../local.properties"),
+    )
+    val file = candidates.firstOrNull { it.exists() } ?: return null
+    val props = Properties().apply { file.inputStream().use { load(it) } }
+    return props.getProperty("GEMINI_API_KEY")
+}
+
+/** API 키 해석: CLI 인자 → 환경변수 → local.properties */
+private fun resolveApiKey(cliKey: String?): String? {
+    if (!cliKey.isNullOrBlank()) return cliKey
+    val envKey = System.getenv("GEMINI_API_KEY")
+    if (!envKey.isNullOrBlank()) return envKey
+    return loadApiKeyFromLocalProperties()
+}
 
 /** CLI 진입점 빌더 */
 fun buildCli(): NoOpCliktCommand {
@@ -65,8 +87,8 @@ class RunCommand : CliktCommand("run") {
     private val useCache by option("--cache", help = "캐시 사용 여부 (true/false)").default("true")
 
     override fun run() {
-        val key = apiKey ?: run {
-            echo("API 키가 필요합니다. --api-key 또는 GEMINI_API_KEY 환경변수를 설정하세요.", err = true)
+        val key = resolveApiKey(apiKey) ?: run {
+            echo("API 키가 필요합니다. --api-key, GEMINI_API_KEY 환경변수, 또는 local.properties에 설정하세요.", err = true)
             return
         }
         val manager = TaskManager()
@@ -126,8 +148,8 @@ class RoleplayCommand : CliktCommand("roleplay") {
     private val agent by option("--agent", "-a", help = "에이전트 ID 필터")
 
     override fun run() {
-        val key = apiKey ?: run {
-            echo("API 키가 필요합니다. --api-key 또는 GEMINI_API_KEY 환경변수를 설정하세요.", err = true)
+        val key = resolveApiKey(apiKey) ?: run {
+            echo("API 키가 필요합니다. --api-key, GEMINI_API_KEY 환경변수, 또는 local.properties에 설정하세요.", err = true)
             return
         }
         val manager = ScenarioManager()
