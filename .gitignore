@@ -17,10 +17,11 @@
 # Kotlin
 *.kotlin_module
 
-# Model files (too large for git)
+# Model files (git 미추적, 온보딩 문서 참고)
 *.onnx
 *.ppn
 *.bin
+app/src/main/assets/models/stt/tokens.txt
 
 # 웨이크워드 모델은 작아서(3KB) assets에 포함
 !app/src/main/assets/models/wakeword/*.ppn

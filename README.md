@@ -91,10 +91,33 @@ curl -L -o app/libs/sherpa-onnx-1.12.29.aar \
   "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.12.29/sherpa-onnx-1.12.29.aar"
 ```
 
+### Sherpa-ONNX STT 모델
+
+한국어 Zipformer 모델을 assets에 다운로드합니다 (~300MB, git 미추적):
+
+```bash
+BASE="https://huggingface.co/k2-fsa/sherpa-onnx-streaming-zipformer-korean-2024-06-16/resolve/main"
+DEST="app/src/main/assets/models/stt"
+
+curl -L -o "$DEST/encoder-epoch-99-avg-1.onnx" "$BASE/encoder-epoch-99-avg-1.onnx"
+curl -L -o "$DEST/decoder-epoch-99-avg-1.onnx" "$BASE/decoder-epoch-99-avg-1.onnx"
+curl -L -o "$DEST/joiner-epoch-99-avg-1.onnx" "$BASE/joiner-epoch-99-avg-1.onnx"
+curl -L -o "$DEST/tokens.txt" "$BASE/tokens.txt"
+```
+
+### Porcupine Access Key
+
+`local.properties`에 추가:
+
+```properties
+PORCUPINE_ACCESS_KEY=여기에_키_붙여넣기
+```
+
 ---
 
 ## 문서
 
 - [architecture.md](docs/architecture.md) — 전체 아키텍처 및 기능 상세
+- [onboarding.md](docs/onboarding.md) — 프로젝트 온보딩 가이드 (빌드/설치/설정)
 - [models.md](docs/models.md) — 사용 모델 스펙 및 벤치마크
 - [setup.md](docs/setup.md) — 사전 설정 및 환경 구성 가이드
