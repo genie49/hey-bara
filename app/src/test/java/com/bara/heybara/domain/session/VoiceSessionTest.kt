@@ -108,6 +108,23 @@ class VoiceSessionTest {
     }
 
     @Test
+    fun `onSpeechResult callback is invoked with recognized text`() {
+        var resultText = ""
+        session.onSpeechResult = { resultText = it }
+        session.onWakeWordDetected()
+        session.onSpeechRecognized("엄마한테 전화해")
+        assertEquals("엄마한테 전화해", resultText)
+    }
+
+    @Test
+    fun `onSpeechResult callback not invoked from IDLE`() {
+        var called = false
+        session.onSpeechResult = { called = true }
+        session.onSpeechRecognized("테스트")
+        assertFalse(called)
+    }
+
+    @Test
     fun `onSpeechRecognized ignored when in PROCESSING`() {
         session.onWakeWordDetected()
         session.onSpeechRecognized("첫 번째")
