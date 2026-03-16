@@ -20,5 +20,6 @@ Android 음성 AI 비서 프로젝트 (Kotlin Native)
 ## Conventions
 
 - Korean language for user-facing strings and TTS responses
-- English for code (variable names, comments, docs)
+- English for code (variable names)
+- Korean for comments
 - Follow Android/Kotlin coding conventions

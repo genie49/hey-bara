@@ -35,6 +35,42 @@ Porcupine (웨이크워드 "헤이 바라")        ~10MB
 
 ---
 
+## 패키지 구조 (Clean Architecture)
+
+의존성 방향: `ui/service` → `data` → `domain`
+
+```
+com/bara/heybara/
+├── domain/                    ← 순수 Kotlin, 외부 의존성 없음
+│   ├── voice/                 인터페이스 (BeepPlayer, SpeechRecognizer, TtsEngine, WakeWordDetector)
+│   └── session/               상태 정의 (SessionState) + 비즈니스 로직 (VoiceSession)
+│
+├── data/                      ← 구체적 기술 구현, 외부 SDK 의존
+│   └── voice/                 구현체 (BeepPlayerImpl, AndroidTtsEngine, PorcupineWakeWordDetector, SherpaSpeechRecognizer)
+│
+├── config/                    ← 시스템 문자열 등 설정
+├── service/                   ← ForegroundService (BaraService)
+└── ui/                        ← Compose UI, ViewModel, Overlay
+```
+
+### 레이어 규칙
+
+| 레이어 | 역할 | 의존 가능 대상 | 금지 |
+|--------|------|---------------|------|
+| **domain** | 인터페이스, 상태, 비즈니스 로직 정의 | 없음 (순수 Kotlin) | Android SDK, 외부 라이브러리 |
+| **data** | domain 인터페이스의 실제 구현 | domain | ui, service |
+| **ui / service** | 사용자 상호작용, 서비스 생명주기 | domain, data | — |
+
+### 구현체 교체 예시
+
+| 인터페이스 (domain) | 현재 구현 (data) | 추후 교체 가능 |
+|---------------------|------------------|---------------|
+| `TtsEngine` | `AndroidTtsEngine` (기본 TTS) | `SupertonicTtsEngine` (Phase 5) |
+| `SpeechRecognizer` | `SherpaSpeechRecognizer` | Google STT 등 |
+| `WakeWordDetector` | `PorcupineWakeWordDetector` | 다른 웨이크워드 엔진 |
+
+---
+
 ## 핵심 컴포넌트
 
 ### 1. 웨이크워드 - Porcupine

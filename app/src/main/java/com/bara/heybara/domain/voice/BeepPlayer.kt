@@ -1,4 +1,4 @@
-package com.bara.heybara.voice
+package com.bara.heybara.domain.voice
 
 interface BeepPlayer {
     fun playBeep(onDone: () -> Unit = {})

@@ -1,4 +1,4 @@
-package com.bara.heybara.session
+package com.bara.heybara.domain.session
 
 enum class SessionState {
     IDLE,       // Porcupine only, low power
