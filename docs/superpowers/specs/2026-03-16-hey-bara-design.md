@@ -20,12 +20,14 @@ Hey Bara is an on-device voice AI assistant for Android, inspired by capybaras. 
 - Execute actions: call, SMS, KakaoTalk, calendar events, tasks, notification reading
 - TTS voice responses in natural, friendly Korean tone
 - Confirmation before executing actions; queries execute immediately
+- Text chat mode: type commands directly in-app, responses streamed as text (no TTS)
+- Conversation history: LLM summarizes topic after each session, stored locally, browsable in UI
 
 ### Non-Functional
 
 - Battery efficient: only wake word engine runs during idle
 - Hands-free primary use case with always-on availability
-- Minimal UI: settings screen + conversation log + status display
+- Minimal UI: settings screen + conversation log + status display + history screen
 - Offline capable (on-device mode)
 
 ---
@@ -85,9 +87,15 @@ app/
 │   └── NotificationReader.kt        # Notification reading
 ├── session/
 │   └── VoiceSession.kt              # On-demand session lifecycle
+├── data/
+│   ├── ConversationHistory.kt       # Room entity for conversation history
+│   ├── HistoryDao.kt                # Room DAO
+│   └── AppDatabase.kt               # Room database
 ├── ui/
-│   ├── MainActivity.kt              # Settings + status display
-│   └── ConversationLog.kt           # Chat-style conversation log
+│   ├── MainActivity.kt              # Status display + chat + text input
+│   ├── HistoryActivity.kt           # Conversation history list
+│   ├── SettingsActivity.kt          # Settings screen
+│   └── OverlayBubbleView.kt         # Floating overlay for other app context
 ├── accessibility/
 │   └── BaraAccessibilityService.kt  # KakaoTalk UI automation
 ├── notification/
@@ -120,7 +128,43 @@ app/
    ├── "응" / "해줘" → execute
    └── "아니" / "취소" → cancel
 9. Execute + TTS result announcement
-10. Release VoiceSession → [IDLE]
+10. LLM summarizes conversation topic → save to local DB
+11. Release VoiceSession → [IDLE]
+```
+
+### Text Chat Mode
+
+When the user types in the text input field instead of using voice:
+
+```
+1. User types message in input field → taps send
+2. [PROCESSING] Send text to Koog Agent (same pipeline as voice)
+3. Response streamed as text to conversation log (no TTS)
+4. Action classification same as voice mode
+5. If confirmation needed → show confirmation button in UI (not voice)
+6. On session end → LLM summarizes topic → save to local DB
+```
+
+- No wake word, STT, or TTS involved
+- Same Koog Agent and tools as voice mode
+- Response appears as streaming text in real-time
+- Input source tagged as "텍스트" in history
+
+### Conversation History
+
+After each conversation session completes:
+
+```
+1. Send conversation transcript to LLM
+2. LLM generates: topic summary (1 line), category (call/sms/kakao/calendar/task/notification)
+3. Save to local Room DB:
+   - id (auto)
+   - topic: "엄마한테 전화 걸기"
+   - category: "call"
+   - inputMode: "voice" | "text"
+   - timestamp: ISO datetime
+   - transcript: full conversation JSON
+4. History screen displays grouped by date, with category icon + color
 ```
 
 ### Timeout Policy
@@ -201,17 +245,45 @@ AI: "철수한테 뭐라고 보낼까요?"
 
 ### MainActivity
 
-- Status display: IDLE / LISTENING / PROCESSING
-- Current NLP mode indicator (on-device / cloud)
-- Conversation log (chat-style)
-- Settings button
+- Header: "Hey Bara" title + IDLE status badge + history/settings icons
+- Conversation log (chat-style bubbles, user=coral, AI=gray with capybara avatar)
+- Text input bar at bottom: message field + send button
+- Navigation: history icon (top-right) → HistoryActivity, settings icon → SettingsActivity
+
+### HistoryActivity
+
+- Grouped by date (오늘, 어제, etc.)
+- Each item shows: category icon (color-coded), topic summary, time, input mode (음성/텍스트)
+- Tap to view full conversation transcript
+- Category colors: call=indigo, calendar=green, kakao=coral, notification=amber, task=indigo
 
 ### SettingsActivity
 
-- NLP mode selection (on-device / cloud)
+- NLP mode selection (on-device / cloud) with radio buttons
 - Google account connection (Calendar / Tasks)
 - Gemini API key input
-- Wake word sensitivity adjustment
+- Wake word sensitivity slider
+
+### Overlay UI (other app context)
+
+When wake word is triggered while using another app, a floating overlay bubble appears on top via `SYSTEM_ALERT_WINDOW` permission.
+
+**Overlay - Listening state:**
+- White card with shadow, top of screen
+- Capybara icon + "Hey Bara" + "듣고 있어요" badge (coral)
+- Audio waveform animation
+- Real-time STT text display
+
+**Overlay - Confirm state:**
+- White card with shadow, top of screen
+- Capybara icon + "Hey Bara" + "확인 대기" badge (indigo)
+- AI question text (e.g. "엄마한테 전화 걸까요?")
+- Hint: "'응' 또는 '취소'로 답해주세요"
+
+**Overlay dismissal:**
+- Auto-dismiss after action completes + TTS response
+- Auto-dismiss on timeout (5s no response)
+- Session ends → overlay closes → return to previous app
 
 ### Foreground Service Notification
 
@@ -250,6 +322,9 @@ Active:
 
 <!-- Internet -->
 <uses-permission android:name="android.permission.INTERNET"/>
+
+<!-- Overlay (floating bubble on other apps) -->
+<uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
 ```
 
 Plus service declarations for NotificationListenerService and AccessibilityService.

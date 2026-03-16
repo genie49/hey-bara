@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 107" fill="none">
+  <!-- Left Ear -->
+  <ellipse cx="24" cy="12" rx="10" ry="9" fill="#996c45"/>
+  <!-- Right Ear -->
+  <ellipse cx="76" cy="12" rx="10" ry="9" fill="#996c45"/>
+  <!-- Head -->
+  <path d="M50,8 C78,8 98,28 98,52 C98,78 82,100 50,100 C18,100 2,78 2,52 C2,28 22,8 50,8 Z" fill="#b88255"/>
+  <!-- Snout -->
+  <rect x="24" y="55" width="52" height="38" rx="19" fill="#d3ac81"/>
+  <!-- Left Eye -->
+  <ellipse cx="25.2" cy="37.4" rx="3" ry="3.2" fill="#2a2424"/>
+  <!-- Right Eye -->
+  <ellipse cx="74.6" cy="37.4" rx="3" ry="3.2" fill="#2a2424"/>
+  <!-- Left Nostril -->
+  <ellipse cx="39.3" cy="62.9" rx="3.2" ry="3.2" fill="#2a2424"/>
+  <!-- Right Nostril -->
+  <ellipse cx="60.6" cy="62.9" rx="3.2" ry="3.2" fill="#2a2424"/>
+</svg>
