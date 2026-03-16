@@ -13,7 +13,10 @@ import com.github.ajalt.clikt.core.subcommands
 import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.int
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.withPermit
 import java.io.File
 import java.util.Properties
 
@@ -81,7 +84,7 @@ class TasksCommand : CliktCommand("tasks") {
 /** run — 평가 실행 */
 class RunCommand : CliktCommand("run") {
     private val apiKey by option("--api-key", "-k", help = "Gemini API 키", envvar = "GEMINI_API_KEY")
-    private val concurrency by option("--concurrency", "-j", help = "동시 실행 수").int().default(4)
+    private val concurrency by option("--concurrency", "-j", help = "동시 실행 수").int().default(6)
     private val category by option("--category", "-c", help = "카테고리 필터")
     private val tag by option("--tag", "-t", help = "태그 필터")
     private val useCache by option("--cache", help = "캐시 사용 여부 (true/false)").default("true")
@@ -146,6 +149,7 @@ class RoleplayCommand : CliktCommand("roleplay") {
     private val apiKey by option("--api-key", "-k", help = "Gemini API 키", envvar = "GEMINI_API_KEY")
     private val scenarioId by option("--scenario", "-s", help = "실행할 시나리오 ID")
     private val agent by option("--agent", "-a", help = "에이전트 ID 필터")
+    private val concurrency by option("--concurrency", "-j", help = "동시 실행 수").int().default(6)
 
     override fun run() {
         val key = resolveApiKey(apiKey) ?: run {
@@ -163,13 +167,20 @@ class RoleplayCommand : CliktCommand("roleplay") {
             return
         }
 
-        echo("${scenarios.size}개 시나리오 롤플레이 실행 중...")
+        echo("${scenarios.size}개 시나리오 롤플레이 실행 중... (concurrency=$concurrency)")
 
+        val semaphore = kotlinx.coroutines.sync.Semaphore(concurrency)
         val runner = RoleplayRunner(key)
         val outcomes = runBlocking {
-            scenarios.map { scenario ->
-                echo("  실행 중: ${scenario.id}")
-                runner.run(scenario)
+            kotlinx.coroutines.coroutineScope {
+                scenarios.map { scenario ->
+                    async {
+                        semaphore.withPermit {
+                            echo("  실행 중: ${scenario.id}")
+                            runner.run(scenario)
+                        }
+                    }
+                }.awaitAll()
             }
         }
 

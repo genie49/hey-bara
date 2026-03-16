@@ -14,7 +14,7 @@ import kotlinx.coroutines.sync.withPermit
  */
 class EvalRunner(
     private val apiKey: String,
-    private val concurrency: Int = 4,
+    private val concurrency: Int = 6,
     private val graderFilter: Set<String>? = null,
     private val cache: Cache? = null,
 ) {
