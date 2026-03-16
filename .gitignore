@@ -3,7 +3,7 @@
 .gradle
 /local.properties
 /.idea
-/build
+**/build
 /captures
 .externalNativeBuild
 .cxx
@@ -37,6 +37,7 @@ secrets.properties
 # Evaluation
 evaluation/cache/
 evaluation/results/
+evaluation/evaluation/
 .env
 
 # OS
