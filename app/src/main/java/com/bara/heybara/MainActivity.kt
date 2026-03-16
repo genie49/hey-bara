@@ -21,6 +21,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -30,8 +32,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import com.bara.heybara.domain.session.SessionState
 import com.bara.heybara.service.VoiceAssistantService
+import com.bara.heybara.data.settings.SecurePreferences
 import com.bara.heybara.ui.ChatMessage
 import com.bara.heybara.ui.MainViewModel
+import com.bara.heybara.ui.SettingsActivity
 import com.bara.heybara.ui.theme.BaraColors
 import com.bara.heybara.ui.theme.HeyBaraTheme
 
@@ -79,7 +83,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startVoiceService() {
-        startService(Intent(this, VoiceAssistantService::class.java))
+        // API Key가 있을 때만 서비스 시작
+        val securePrefs = SecurePreferences(this)
+        if (securePrefs.getGeminiApiKey() != null) {
+            startService(Intent(this, VoiceAssistantService::class.java))
+        }
     }
 }
 
@@ -87,6 +95,9 @@ class MainActivity : ComponentActivity() {
 fun MainScreen(viewModel: MainViewModel) {
     val state by viewModel.sessionState.collectAsState()
     val messages by viewModel.messages.collectAsState()
+    val context = LocalContext.current
+    val securePrefs = remember { SecurePreferences(context) }
+    val hasApiKey = securePrefs.getGeminiApiKey() != null
 
     Column(
         modifier = Modifier
@@ -114,17 +125,42 @@ fun MainScreen(viewModel: MainViewModel) {
                 )
                 StatusBadge(state)
             }
+            IconButton(onClick = {
+                context.startActivity(Intent(context, SettingsActivity::class.java))
+            }) {
+                Text("\u2699", fontSize = 20.sp)
+            }
         }
 
         // 채팅 영역
-        LazyColumn(
-            modifier = Modifier
-                .weight(1f)
-                .padding(horizontal = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            items(messages) { message ->
-                ChatBubble(message)
+        if (!hasApiKey) {
+            // API Key 미설정 안내
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("API Key가 설정되지 않았습니다", color = BaraColors.TextSecondary)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    TextButton(onClick = {
+                        context.startActivity(Intent(context, SettingsActivity::class.java))
+                    }) {
+                        Text("설정으로 이동")
+                    }
+                }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(messages) { message ->
+                    ChatBubble(message)
+                }
             }
         }
 
