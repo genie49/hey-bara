@@ -10,6 +10,8 @@ coroutines = "1.9.0"
 porcupine = "4.0.0"
 koog = "0.6.4"
 securityCrypto = "1.1.0-alpha06"
+room = "2.6.1"
+ksp = "2.2.10-2.0.2"
 mockitoKotlin = "5.4.0"
 testRunner = "1.6.2"
 activityCompose = "1.8.0"
@@ -37,6 +39,9 @@ kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-cor
 porcupine-android = { group = "ai.picovoice", name = "porcupine-android", version.ref = "porcupine" }
 koog-agents = { group = "ai.koog", name = "koog-agents", version.ref = "koog" }
 security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
+room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
+room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
+room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 mockito-kotlin = { group = "org.mockito.kotlin", name = "mockito-kotlin", version.ref = "mockitoKotlin" }
 androidx-test-runner = { group = "androidx.test", name = "runner", version.ref = "testRunner" }
 
@@ -44,4 +49,5 @@ androidx-test-runner = { group = "androidx.test", name = "runner", version.ref =
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 
