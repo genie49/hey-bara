@@ -1,47 +1,184 @@
 package com.bara.heybara
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
+import androidx.activity.viewModels
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
+import com.bara.heybara.domain.session.SessionState
+import com.bara.heybara.service.VoiceAssistantService
+import com.bara.heybara.ui.ChatMessage
+import com.bara.heybara.ui.MainViewModel
+import com.bara.heybara.ui.theme.BaraColors
 import com.bara.heybara.ui.theme.HeyBaraTheme
 
 class MainActivity : ComponentActivity() {
+
+    private val viewModel: MainViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        startService(Intent(this, VoiceAssistantService::class.java))
         setContent {
             HeyBaraTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
-                }
+                MainScreen(viewModel)
             }
         }
     }
 }
 
 @Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
+fun MainScreen(viewModel: MainViewModel) {
+    val state by viewModel.sessionState.collectAsState()
+    val messages by viewModel.messages.collectAsState()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(BaraColors.Background)
+    ) {
+        // 헤더
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(horizontal = 24.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    "Hey Bara",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = BaraColors.TextPrimary
+                )
+                StatusBadge(state)
+            }
+        }
+
+        // 채팅 영역
+        LazyColumn(
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            items(messages) { message ->
+                ChatBubble(message)
+            }
+        }
+
+        // 입력 바
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 24.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            TextField(
+                value = "",
+                onValueChange = {},
+                placeholder = { Text("메시지를 입력하세요...") },
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(22.dp)
+            )
+            IconButton(
+                onClick = {},
+                modifier = Modifier
+                    .size(44.dp)
+                    .background(BaraColors.Coral, CircleShape)
+            ) {
+                Text("\u2192", color = BaraColors.Background)
+            }
+        }
+    }
 }
 
-@Preview(showBackground = true)
 @Composable
-fun GreetingPreview() {
+fun StatusBadge(state: SessionState) {
+    val (text, color, bgColor) = when (state) {
+        SessionState.IDLE -> Triple("IDLE", BaraColors.Green, BaraColors.GreenBadgeBg)
+        SessionState.LISTENING -> Triple("듣는 중", BaraColors.Coral, BaraColors.CoralBadgeBg)
+        SessionState.PROCESSING -> Triple("처리 중", BaraColors.Indigo, BaraColors.IndigoBadgeBg)
+        SessionState.CONFIRMING -> Triple("확인 대기", BaraColors.Indigo, BaraColors.IndigoBadgeBg)
+    }
+    Surface(
+        color = bgColor,
+        shape = RoundedCornerShape(10.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(6.dp)
+                    .background(color, CircleShape)
+            )
+            Text(text, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = color)
+        }
+    }
+}
+
+@Preview(showBackground = true, widthDp = 360, heightDp = 720)
+@Composable
+fun MainScreenPreview() {
+    val viewModel = MainViewModel().apply {
+        addMessage(ChatMessage("엄마한테 전화해", isUser = true, timestamp = "오후 2:30"))
+        addMessage(ChatMessage("엄마한테 전화해라고 하셨나요?", isUser = false, timestamp = "오후 2:30"))
+    }
     HeyBaraTheme {
-        Greeting("Android")
+        MainScreen(viewModel)
+    }
+}
+
+@Composable
+fun ChatBubble(message: ChatMessage) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = if (message.isUser) Arrangement.End else Arrangement.Start
+    ) {
+        Surface(
+            color = if (message.isUser) BaraColors.Coral else BaraColors.CardSurface,
+            shape = RoundedCornerShape(18.dp)
+        ) {
+            Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+                Text(
+                    message.text,
+                    color = if (message.isUser) BaraColors.Background else BaraColors.TextPrimary,
+                    fontSize = 14.sp
+                )
+                Text(
+                    message.timestamp,
+                    color = if (message.isUser) BaraColors.Background.copy(alpha = 0.8f) else BaraColors.TextTertiary,
+                    fontSize = 10.sp
+                )
+            }
+        }
     }
 }
