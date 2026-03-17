@@ -1,0 +1,22 @@
+id: voice-agent/calendar-list-002
+input: "이번 주 일정 전부 알려줘"
+dataset: default-contacts
+expected:
+  tool_calls:
+    mode: superset
+    calls:
+      - tool: list_events
+  output_contains_any:
+    - "팀 미팅"
+    - "치과"
+    - "프로젝트 마감"
+  constraints:
+    max_turns: 5
+    max_toolcalls: 3
+  llm_grader:
+    rubric: response-quality.md
+    min_score: 0.7
+metadata:
+  category: calendar
+  description: "이번 주 일정 전체 조회 — days 파라미터 활용"
+  tags: [calendar, list, complex]

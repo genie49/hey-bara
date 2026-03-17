@@ -1,0 +1,22 @@
+id: voice-agent/tasks-list-001
+input: "할일 뭐 있어?"
+dataset: default-contacts
+expected:
+  tool_calls:
+    mode: superset
+    calls:
+      - tool: list_tasks
+  output_contains_any:
+    - "장보기"
+    - "세탁소"
+    - "보고서"
+  constraints:
+    max_turns: 5
+    max_toolcalls: 3
+  llm_grader:
+    rubric: response-quality.md
+    min_score: 0.7
+metadata:
+  category: tasks
+  description: "할일 조회 — list_tasks 호출 후 미완료 할일 안내"
+  tags: [tasks, list, basic]

@@ -1,0 +1,17 @@
+# 고정 시각: 2026-03-17 14:00 (화) 기준
+tasks:
+  - id: "task-001"
+    title: "장보기"
+    status: "needsAction"
+    dueDate: "2026-03-18"
+  - id: "task-002"
+    title: "세탁소 옷 찾기"
+    status: "needsAction"
+    dueDate: "2026-03-17"
+  - id: "task-003"
+    title: "보고서 작성"
+    status: "needsAction"
+  - id: "task-004"
+    title: "운동"
+    status: "completed"
+    dueDate: "2026-03-16"

@@ -1,0 +1,21 @@
+id: voice-agent/calendar-list-001
+input: "오늘 일정 알려줘"
+dataset: default-contacts
+expected:
+  tool_calls:
+    mode: superset
+    calls:
+      - tool: list_events
+  output_contains_any:
+    - "팀 미팅"
+    - "점심 약속"
+  constraints:
+    max_turns: 5
+    max_toolcalls: 3
+  llm_grader:
+    rubric: response-quality.md
+    min_score: 0.7
+metadata:
+  category: calendar
+  description: "오늘 일정 조회 — list_events 호출 후 일정 목록 안내"
+  tags: [calendar, list, basic]

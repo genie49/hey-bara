@@ -10,8 +10,11 @@ import androidx.core.app.NotificationCompat
 import com.bara.heybara.BaraApp
 import com.bara.heybara.R
 import com.bara.heybara.data.action.DeviceContactResolver
+import com.bara.heybara.data.auth.GoogleAuthManager
+import com.bara.heybara.data.calendar.GoogleCalendarClient
 import com.bara.heybara.data.model.ModelInstaller
 import com.bara.heybara.data.agent.KoogAgentEngine
+import com.bara.heybara.data.tasks.GoogleTasksClient
 import com.bara.heybara.data.settings.SecurePreferences
 import com.bara.heybara.data.voice.AndroidTtsEngine
 import com.bara.heybara.data.voice.SoundPoolBeepPlayer
@@ -44,8 +47,12 @@ class VoiceAssistantService : Service() {
         val apiKey = SecurePreferences(this).getGeminiApiKey()
         if (apiKey != null) {
             val contactResolver = DeviceContactResolver(this)
+            GoogleAuthManager.restore(this)
             val engine = KoogAgentEngine(apiKey, contactResolver)
             engine.setContext(this)
+            if (GoogleAuthManager.isAuthenticated()) {
+                engine.setGoogleClients(GoogleCalendarClient(this), GoogleTasksClient(this))
+            }
             agentEngine = engine
             Log.d(TAG, "KoogAgentEngine 초기화 완료 (연락처 검색 활성화)")
         } else {

@@ -6,6 +6,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.bara.heybara.data.action.DeviceContactResolver
 import com.bara.heybara.data.agent.KoogAgentEngine
+import com.bara.heybara.data.auth.GoogleAuthManager
+import com.bara.heybara.data.calendar.GoogleCalendarClient
+import com.bara.heybara.data.tasks.GoogleTasksClient
 import com.bara.heybara.data.settings.SecurePreferences
 import com.bara.heybara.data.history.AppDatabase
 import com.bara.heybara.data.history.RoomConversationRepository
@@ -72,8 +75,15 @@ class MainViewModel : ViewModel() {
         appContext = context.applicationContext
         val apiKey = SecurePreferences(context).getGeminiApiKey() ?: return
         val contactResolver = DeviceContactResolver(context)
+        GoogleAuthManager.restore(context)
         agentEngine = KoogAgentEngine(apiKey, contactResolver).also {
             it.setContext(context)
+            if (GoogleAuthManager.isAuthenticated()) {
+                it.setGoogleClients(
+                    GoogleCalendarClient(context),
+                    GoogleTasksClient(context)
+                )
+            }
         }
         conversationRepository = RoomConversationRepository(
             AppDatabase.getInstance(context).conversationDao()

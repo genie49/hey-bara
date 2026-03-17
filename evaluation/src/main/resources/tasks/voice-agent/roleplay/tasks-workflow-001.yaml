@@ -1,0 +1,22 @@
+id: voice-agent/roleplay-tasks-workflow-001
+type: roleplay
+persona: |
+  당신은 학생입니다.
+  할일을 추가하고 싶습니다. 제목은 "청소"입니다.
+  기한을 물어보면 "이번 주 금요일"이라고 답합니다.
+  기한을 물어보지 않으면 "기한도 설정해줘"라고 직접 요청합니다.
+goal: |
+  1. 사용자가 "청소" 할일 추가를 요청한다
+  2. 에이전트가 할일을 추가하거나 기한을 물어본다
+  3. 최종적으로 create_task가 호출되어 할일이 추가된다
+  4. 기한(2026-03-21 또는 금요일)이 설정되면 더 좋지만 필수는 아님
+initial_message: "청소 할일 추가해줘"
+dataset: default-contacts
+max_turns: 8
+completion_criteria:
+  rubric: conversation-quality.md
+  min_score: 0.7
+metadata:
+  category: roleplay
+  description: "할일 추가 멀티턴 대화"
+  tags: [tasks, create, roleplay]

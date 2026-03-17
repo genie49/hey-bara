@@ -1,0 +1,21 @@
+id: voice-agent/calendar-create-002
+input: "내일 오후 3시부터 5시까지 스터디 추가해줘"
+dataset: default-contacts
+expected:
+  tool_calls:
+    mode: superset
+    calls:
+      - tool: create_event
+  output_contains_any:
+    - "추가"
+    - "스터디"
+  constraints:
+    max_turns: 5
+    max_toolcalls: 3
+  llm_grader:
+    rubric: response-quality.md
+    min_score: 0.7
+metadata:
+  category: calendar
+  description: "시간 범위 지정 일정 생성 — start/end 모두 정확히 파싱"
+  tags: [calendar, create, complex]

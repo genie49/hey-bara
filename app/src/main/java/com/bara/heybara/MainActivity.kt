@@ -335,8 +335,10 @@ fun StatusBadge(state: SessionState) {
 @Composable
 fun MainScreenPreview() {
     val viewModel = MainViewModel().apply {
-        addMessage(ChatMessage("엄마한테 전화해", isUser = true, timestamp = "오후 2:30"))
-        addMessage(ChatMessage("엄마한테 전화해라고 하셨나요?", isUser = false, timestamp = "오후 2:30"))
+        addMessage(ChatMessage("내일 오후 3시에 치과 추가해줘", isUser = true, timestamp = "오후 2:30"))
+        addMessage(ChatMessage("내일 오후 3시에 치과 일정을 추가했어요.", isUser = false, timestamp = "오후 2:30"))
+        addMessage(ChatMessage("장보기 할일 추가해줘", isUser = true, timestamp = "오후 2:31"))
+        addMessage(ChatMessage("장보기 할일을 추가했어요.", isUser = false, timestamp = "오후 2:31"))
     }
     HeyBaraTheme {
         MainScreen(viewModel, overrideHasApiKey = true)

@@ -1,0 +1,23 @@
+id: voice-agent/calendar-update-001
+input: "치과 일정을 4시로 변경해줘"
+dataset: default-contacts
+expected:
+  tool_calls:
+    mode: superset
+    calls:
+      - tool: list_events
+      - tool: update_event
+  output_contains_any:
+    - "수정"
+    - "변경"
+    - "치과"
+  constraints:
+    max_turns: 5
+    max_toolcalls: 5
+  llm_grader:
+    rubric: response-quality.md
+    min_score: 0.7
+metadata:
+  category: calendar
+  description: "일정 수정 — list_events로 ID 확인 후 update_event 호출"
+  tags: [calendar, update, basic]

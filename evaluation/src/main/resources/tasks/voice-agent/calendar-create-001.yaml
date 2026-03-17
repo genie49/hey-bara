@@ -1,0 +1,22 @@
+id: voice-agent/calendar-create-001
+input: "금요일 오전 10시에 회의 추가해줘"
+dataset: default-contacts
+expected:
+  tool_calls:
+    mode: superset
+    calls:
+      - tool: create_event
+  output_contains_any:
+    - "추가"
+    - "생성"
+    - "회의"
+  constraints:
+    max_turns: 5
+    max_toolcalls: 3
+  llm_grader:
+    rubric: response-quality.md
+    min_score: 0.7
+metadata:
+  category: calendar
+  description: "일정 생성 — 상대 날짜(금요일) 파싱 후 create_event 호출"
+  tags: [calendar, create, basic]

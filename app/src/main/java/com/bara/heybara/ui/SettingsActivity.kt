@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -23,6 +24,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.bara.heybara.data.auth.GoogleAuthManager
 import com.bara.heybara.data.model.ModelInstaller
 import com.bara.heybara.data.settings.SecurePreferences
 import com.bara.heybara.ui.theme.BaraColors
@@ -30,6 +32,21 @@ import com.bara.heybara.ui.theme.HeyBaraTheme
 import kotlinx.coroutines.launch
 
 class SettingsActivity : ComponentActivity() {
+
+    // Google 동의 화면 결과를 전달할 콜백
+    private var onGoogleConsentResult: ((Boolean) -> Unit)? = null
+
+    private val googleConsentLauncher = registerForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        val success = if (result.resultCode == RESULT_OK) {
+            val authResult = com.google.android.gms.auth.api.identity.Identity
+                .getAuthorizationClient(this)
+                .getAuthorizationResultFromIntent(result.data)
+            GoogleAuthManager.handleAuthResult(this, authResult)
+        } else false
+        onGoogleConsentResult?.invoke(success)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -39,7 +56,21 @@ class SettingsActivity : ComponentActivity() {
             HeyBaraTheme {
                 SettingsScreen(
                     securePrefs = securePrefs,
-                    onBack = { finish() }
+                    onBack = { finish() },
+                    onGoogleSignIn = { onResult ->
+                        onGoogleConsentResult = onResult
+                        kotlinx.coroutines.MainScope().launch {
+                            when (val signInResult = GoogleAuthManager.signIn(this@SettingsActivity)) {
+                                is GoogleAuthManager.SignInResult.Success -> onResult(true)
+                                is GoogleAuthManager.SignInResult.NeedsConsent -> {
+                                    val intentSenderRequest = androidx.activity.result.IntentSenderRequest
+                                        .Builder(signInResult.pendingIntent).build()
+                                    googleConsentLauncher.launch(intentSenderRequest)
+                                }
+                                is GoogleAuthManager.SignInResult.Failed -> onResult(false)
+                            }
+                        }
+                    }
                 )
             }
         }
@@ -47,7 +78,11 @@ class SettingsActivity : ComponentActivity() {
 }
 
 @Composable
-fun SettingsScreen(securePrefs: SecurePreferences, onBack: () -> Unit) {
+fun SettingsScreen(
+    securePrefs: SecurePreferences,
+    onBack: () -> Unit,
+    onGoogleSignIn: ((Boolean) -> Unit) -> Unit = {}
+) {
     val existingKey = securePrefs.getGeminiApiKey()
     var apiKeyInput by remember { mutableStateOf("") }
     var savedMessage by remember { mutableStateOf<String?>(null) }
@@ -62,7 +97,10 @@ fun SettingsScreen(securePrefs: SecurePreferences, onBack: () -> Unit) {
 
     LaunchedEffect(Unit) {
         ModelInstaller.checkInstalled(context)
+        GoogleAuthManager.restore(context)
     }
+
+    var googleEmail by remember { mutableStateOf(GoogleAuthManager.getAccountEmail()) }
 
     Column(
         modifier = Modifier
@@ -154,6 +192,40 @@ fun SettingsScreen(securePrefs: SecurePreferences, onBack: () -> Unit) {
                         ) {
                             Text("저장")
                         }
+                    }
+                }
+            }
+
+            // Google 계정 섹션
+            SettingsSection(label = "Google 계정 (캘린더/할일)") {
+                if (googleEmail != null) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(googleEmail!!, color = BaraColors.TextPrimary, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                        IconButton(
+                            onClick = {
+                                GoogleAuthManager.signOut(context)
+                                googleEmail = null
+                            },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(Icons.Default.Close, contentDescription = "연결 해제", tint = BaraColors.TextTertiary, modifier = Modifier.size(18.dp))
+                        }
+                    }
+                } else {
+                    Button(
+                        onClick = {
+                            onGoogleSignIn { success ->
+                                if (success) googleEmail = GoogleAuthManager.getAccountEmail()
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = BaraColors.Coral)
+                    ) {
+                        Text("Google 계정 연결")
                     }
                 }
             }
@@ -343,7 +415,6 @@ fun SettingsOptionRow(title: String, subtitle: String, enabled: Boolean) {
 @Composable
 fun SettingsScreenPreview() {
     HeyBaraTheme {
-        // Preview용: SecurePreferences 없이 정적 UI
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -363,21 +434,49 @@ fun SettingsScreenPreview() {
             }
 
             Column(
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 24.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
+                // API 키
                 SettingsSection(label = "Gemini API 키") {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("\uD83D\uDD11", fontSize = 16.sp)
-                        Spacer(modifier = Modifier.width(12.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Text("AIza...7x9Q", color = BaraColors.TextPrimary, fontSize = 14.sp, modifier = Modifier.weight(1f))
                         Icon(Icons.Default.Close, contentDescription = "삭제", tint = BaraColors.TextTertiary, modifier = Modifier.size(18.dp))
                     }
                 }
 
+                // Google 계정
+                SettingsSection(label = "Google 계정 (캘린더/할일)") {
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text("user@gmail.com", color = BaraColors.TextPrimary, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                        Icon(Icons.Default.Close, contentDescription = "연결 해제", tint = BaraColors.TextTertiary, modifier = Modifier.size(18.dp))
+                    }
+                }
+
+                // 음성 모델
+                SettingsSection(label = "음성 모델") {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("음성 인식 (Korean STT)", color = BaraColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                Text("~300MB · 한국어 음성 인식", color = BaraColors.TextTertiary, fontSize = 12.sp)
+                            }
+                            Text("설치 완료", color = BaraColors.Green, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                        HorizontalDivider(color = BaraColors.Background, thickness = 1.dp)
+                        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("웨이크워드 (Hey Bara)", color = BaraColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                Text("~5MB · 음성 호출 감지", color = BaraColors.TextTertiary, fontSize = 12.sp)
+                            }
+                            Text("설치 완료", color = BaraColors.Green, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+
+                // AI 엔진
                 SettingsSection(label = "AI 엔진") {
                     Column {
                         SettingsOptionRow("온디바이스 (Gemma 3n)", "오프라인, 무료, 프라이버시 보호", false)
@@ -386,6 +485,7 @@ fun SettingsScreenPreview() {
                     }
                 }
 
+                // 웨이크워드 감도
                 SettingsSection(label = "웨이크워드 감도") {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(modifier = Modifier.fillMaxWidth()) {

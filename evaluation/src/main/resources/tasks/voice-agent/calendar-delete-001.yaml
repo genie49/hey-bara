@@ -1,0 +1,23 @@
+id: voice-agent/calendar-delete-001
+input: "치과 일정 삭제해줘"
+dataset: default-contacts
+expected:
+  tool_calls:
+    mode: superset
+    calls:
+      - tool: list_events
+      - tool: delete_event
+  output_contains_any:
+    - "삭제"
+    - "취소"
+    - "치과"
+  constraints:
+    max_turns: 5
+    max_toolcalls: 5
+  llm_grader:
+    rubric: response-quality.md
+    min_score: 0.7
+metadata:
+  category: calendar
+  description: "일정 삭제 — list_events로 ID 확인 후 delete_event 호출"
+  tags: [calendar, delete, basic]
