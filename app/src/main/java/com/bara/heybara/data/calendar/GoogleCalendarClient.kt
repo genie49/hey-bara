@@ -159,7 +159,14 @@ class GoogleCalendarClient(private val context: Context) {
         val conn = URL(urlStr).openConnection() as HttpURLConnection
         conn.setRequestProperty("Authorization", "Bearer $token")
         conn.connect()
-        val body = conn.inputStream.bufferedReader().readText()
+        val code = conn.responseCode
+        val body = if (code in 200..299) {
+            conn.inputStream.bufferedReader().readText()
+        } else {
+            val err = conn.errorStream?.bufferedReader()?.readText() ?: "HTTP $code"
+            conn.disconnect()
+            throw Exception("API 오류 ($code): $err")
+        }
         conn.disconnect()
         return Json.parseToJsonElement(body)
     }
@@ -171,12 +178,16 @@ class GoogleCalendarClient(private val context: Context) {
         conn.setRequestProperty("Content-Type", "application/json")
         conn.doOutput = true
         conn.outputStream.write(jsonBody.toByteArray())
-        conn.inputStream.bufferedReader().readText()
+        val code = conn.responseCode
+        if (code !in 200..299) {
+            val err = conn.errorStream?.bufferedReader()?.readText() ?: "HTTP $code"
+            conn.disconnect()
+            throw Exception("API 오류 ($code): $err")
+        }
         conn.disconnect()
     }
 
     private fun httpPatch(urlStr: String, token: String, jsonBody: String) {
-        // HttpURLConnection은 PATCH 미지원 → POST + override header
         val conn = URL(urlStr).openConnection() as HttpURLConnection
         conn.requestMethod = "POST"
         conn.setRequestProperty("Authorization", "Bearer $token")
@@ -184,7 +195,12 @@ class GoogleCalendarClient(private val context: Context) {
         conn.setRequestProperty("X-HTTP-Method-Override", "PATCH")
         conn.doOutput = true
         conn.outputStream.write(jsonBody.toByteArray())
-        conn.inputStream.bufferedReader().readText()
+        val code = conn.responseCode
+        if (code !in 200..299) {
+            val err = conn.errorStream?.bufferedReader()?.readText() ?: "HTTP $code"
+            conn.disconnect()
+            throw Exception("API 오류 ($code): $err")
+        }
         conn.disconnect()
     }
 
@@ -193,7 +209,12 @@ class GoogleCalendarClient(private val context: Context) {
         conn.requestMethod = "DELETE"
         conn.setRequestProperty("Authorization", "Bearer $token")
         conn.connect()
-        conn.responseCode // 응답 대기
+        val code = conn.responseCode
+        if (code !in 200..299 && code != 204) {
+            val err = conn.errorStream?.bufferedReader()?.readText() ?: "HTTP $code"
+            conn.disconnect()
+            throw Exception("API 오류 ($code): $err")
+        }
         conn.disconnect()
     }
 }

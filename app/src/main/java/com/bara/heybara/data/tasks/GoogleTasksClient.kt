@@ -118,7 +118,14 @@ class GoogleTasksClient(private val context: Context) {
         val conn = URL(urlStr).openConnection() as HttpURLConnection
         conn.setRequestProperty("Authorization", "Bearer $token")
         conn.connect()
-        val body = conn.inputStream.bufferedReader().readText()
+        val code = conn.responseCode
+        val body = if (code in 200..299) {
+            conn.inputStream.bufferedReader().readText()
+        } else {
+            val err = conn.errorStream?.bufferedReader()?.readText() ?: "HTTP $code"
+            conn.disconnect()
+            throw Exception("API 오류 ($code): $err")
+        }
         conn.disconnect()
         return Json.parseToJsonElement(body)
     }
@@ -130,7 +137,12 @@ class GoogleTasksClient(private val context: Context) {
         conn.setRequestProperty("Content-Type", "application/json")
         conn.doOutput = true
         conn.outputStream.write(jsonBody.toByteArray())
-        conn.inputStream.bufferedReader().readText()
+        val code = conn.responseCode
+        if (code !in 200..299) {
+            val err = conn.errorStream?.bufferedReader()?.readText() ?: "HTTP $code"
+            conn.disconnect()
+            throw Exception("API 오류 ($code): $err")
+        }
         conn.disconnect()
     }
 
@@ -142,7 +154,12 @@ class GoogleTasksClient(private val context: Context) {
         conn.setRequestProperty("X-HTTP-Method-Override", "PATCH")
         conn.doOutput = true
         conn.outputStream.write(jsonBody.toByteArray())
-        conn.inputStream.bufferedReader().readText()
+        val code = conn.responseCode
+        if (code !in 200..299) {
+            val err = conn.errorStream?.bufferedReader()?.readText() ?: "HTTP $code"
+            conn.disconnect()
+            throw Exception("API 오류 ($code): $err")
+        }
         conn.disconnect()
     }
 
@@ -151,7 +168,12 @@ class GoogleTasksClient(private val context: Context) {
         conn.requestMethod = "DELETE"
         conn.setRequestProperty("Authorization", "Bearer $token")
         conn.connect()
-        conn.responseCode
+        val code = conn.responseCode
+        if (code !in 200..299 && code != 204) {
+            val err = conn.errorStream?.bufferedReader()?.readText() ?: "HTTP $code"
+            conn.disconnect()
+            throw Exception("API 오류 ($code): $err")
+        }
         conn.disconnect()
     }
 }
