@@ -43,8 +43,8 @@ class RoomConversationRepositoryTest {
     fun `getAll converts Entities to Conversations`() = runTest {
         whenever(mockDao.getAll()).thenReturn(
             listOf(
-                ConversationEntity(1, "전화 걸기", "call", "voice", 1000L, "transcript1"),
-                ConversationEntity(2, "문자 보내기", "sms", "text", 2000L, "transcript2")
+                ConversationEntity(1, "session1", "전화 걸기", "call", "voice", 1000L, "transcript1"),
+                ConversationEntity(2, "session2", "문자 보내기", "sms", "text", 2000L, "transcript2")
             )
         )
 

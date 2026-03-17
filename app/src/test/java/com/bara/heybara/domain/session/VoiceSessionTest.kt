@@ -4,7 +4,7 @@ import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import org.mockito.kotlin.*
-import com.bara.heybara.domain.agent.*
+import com.bara.heybara.domain.agent.AgentEngine
 import com.bara.heybara.domain.voice.*
 import kotlinx.coroutines.test.runTest
 
@@ -25,7 +25,7 @@ class VoiceSessionTest {
         session = VoiceSession(mockRecognizer, mockTts, mockBeep, mockAgent)
     }
 
-    // === Phase 1 기존 테스트 ===
+    // === 상태 전이 테스트 ===
 
     @Test
     fun `initial state is IDLE`() {
@@ -138,35 +138,11 @@ class VoiceSessionTest {
         assertEquals("첫 번째", session.lastRecognizedText)
     }
 
-    // === Phase 2 AgentEngine 테스트 ===
+    // === AgentEngine 테스트 ===
 
     @Test
-    fun `processWithAgent transitions to CONFIRMING when confirmation required`() = runTest {
-        whenever(mockAgent.process("엄마한테 전화해")).thenReturn(
-            AgentResponse("엄마한테 전화를 걸까요?", AgentAction.Call("엄마", null), true)
-        )
-        session.onWakeWordDetected()
-        session.onSpeechRecognized("엄마한테 전화해")
-        session.processWithAgent()
-        assertEquals(SessionState.CONFIRMING, session.currentState)
-    }
-
-    @Test
-    fun `processWithAgent speaks response when confirmation required`() = runTest {
-        whenever(mockAgent.process("엄마한테 전화해")).thenReturn(
-            AgentResponse("엄마한테 전화를 걸까요?", AgentAction.Call("엄마", null), true)
-        )
-        session.onWakeWordDetected()
-        session.onSpeechRecognized("엄마한테 전화해")
-        session.processWithAgent()
-        verify(mockTts).speak(eq("엄마한테 전화를 걸까요?"), any())
-    }
-
-    @Test
-    fun `processWithAgent speaks and ends when no confirmation needed`() = runTest {
-        whenever(mockAgent.process("오늘 날씨")).thenReturn(
-            AgentResponse("오늘 서울은 맑아요", null, false)
-        )
+    fun `processWithAgent speaks result and ends session`() = runTest {
+        whenever(mockAgent.process("오늘 날씨")).thenReturn("오늘 서울은 맑아요")
         session.onWakeWordDetected()
         session.onSpeechRecognized("오늘 날씨")
         session.processWithAgent()
@@ -174,7 +150,7 @@ class VoiceSessionTest {
     }
 
     @Test
-    fun `processWithAgent handles error and returns to IDLE`() = runTest {
+    fun `processWithAgent handles error`() = runTest {
         whenever(mockAgent.process(any())).thenThrow(RuntimeException("Network error"))
         session.onWakeWordDetected()
         session.onSpeechRecognized("테스트")
@@ -189,29 +165,6 @@ class VoiceSessionTest {
         sessionNoAgent.onSpeechRecognized("테스트")
         sessionNoAgent.processWithAgent()
         verify(mockTts).speak(eq("테스트라고 하셨나요?"), any())
-    }
-
-    @Test
-    fun `confirmAction invokes onActionExecute callback`() = runTest {
-        var executedAction: AgentAction? = null
-        session.onActionExecute = { executedAction = it }
-        whenever(mockAgent.process("엄마한테 전화해")).thenReturn(
-            AgentResponse("엄마한테 전화를 걸까요?", AgentAction.Call("엄마", null), true)
-        )
-        session.onWakeWordDetected()
-        session.onSpeechRecognized("엄마한테 전화해")
-        session.processWithAgent()
-        session.confirmAction()
-        assertEquals(AgentAction.Call("엄마", null), executedAction)
-        assertEquals(SessionState.IDLE, session.currentState)
-    }
-
-    @Test
-    fun `cancelAction speaks cancel message and returns to IDLE`() {
-        session.onWakeWordDetected()
-        session.onSpeechRecognized("테스트")
-        session.cancelAction()
-        verify(mockTts).speak(eq("취소할게요"), any())
     }
 
     @Test
