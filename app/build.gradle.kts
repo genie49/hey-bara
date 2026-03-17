@@ -50,6 +50,9 @@ android {
                 "META-INF/io.netty.versions.properties"
             )
         }
+        jniLibs {
+            pickFirsts += listOf("lib/arm64-v8a/libonnxruntime.so", "lib/armeabi-v7a/libonnxruntime.so", "lib/x86_64/libonnxruntime.so", "lib/x86/libonnxruntime.so")
+        }
     }
 
 }
@@ -71,6 +74,9 @@ dependencies {
     // Google Auth
     implementation("com.google.android.gms:play-services-auth:21.3.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
+
+    // ONNX Runtime Java API (네이티브는 sherpa-onnx AAR의 1.17.1 사용)
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.17.1")
 
     // tar.bz2 모델 다운로드용
     implementation("org.apache.commons:commons-compress:1.27.1")

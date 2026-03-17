@@ -49,6 +49,29 @@ object ModelInstaller {
     private val _sttProgress = MutableStateFlow(0)
     val sttProgress: StateFlow<Int> = _sttProgress
 
+    // --- TTS 상태 ---
+    private val _ttsState = MutableStateFlow(InstallState.NOT_INSTALLED)
+    val ttsState: StateFlow<InstallState> = _ttsState
+    private val _ttsProgress = MutableStateFlow(0)
+    val ttsProgress: StateFlow<Int> = _ttsProgress
+
+    // TTS: HuggingFace Supertonic 2
+    private const val TTS_BASE_URL =
+        "https://huggingface.co/Supertone/supertonic-2/resolve/main/onnx"
+
+    private val TTS_FILES = listOf(
+        "duration_predictor.onnx",
+        "text_encoder.onnx",
+        "vector_estimator.onnx",
+        "vocoder.onnx",
+        "tts.json",
+        "unicode_indexer.json"
+    )
+
+    // 보이스 스타일 (여성 F1)
+    private const val VOICE_STYLE_URL =
+        "https://huggingface.co/Supertone/supertonic-2/resolve/main/voice_styles/F1.json"
+
     // --- KWS 상태 ---
     private val _kwsState = MutableStateFlow(InstallState.NOT_INSTALLED)
     val kwsState: StateFlow<InstallState> = _kwsState
@@ -58,6 +81,7 @@ object ModelInstaller {
     fun checkInstalled(context: Context) {
         _sttState.value = if (isSttInstalled(context)) InstallState.INSTALLED else InstallState.NOT_INSTALLED
         _kwsState.value = if (isKwsInstalled(context)) InstallState.INSTALLED else InstallState.NOT_INSTALLED
+        _ttsState.value = if (isTtsInstalled(context)) InstallState.INSTALLED else InstallState.NOT_INSTALLED
     }
 
     fun isSttInstalled(context: Context): Boolean {
@@ -69,6 +93,12 @@ object ModelInstaller {
         val kwsDir = File(context.filesDir, "models/kws")
         return KWS_FILES.values.all { File(kwsDir, it).exists() } &&
                 File(kwsDir, "keywords.txt").exists()
+    }
+
+    fun isTtsInstalled(context: Context): Boolean {
+        val ttsDir = File(context.filesDir, "models/tts")
+        return TTS_FILES.all { File(ttsDir, it).exists() } &&
+                File(ttsDir, "voice_style.json").exists()
     }
 
     fun isAllInstalled(context: Context): Boolean = isSttInstalled(context) && isKwsInstalled(context)
@@ -135,6 +165,52 @@ object ModelInstaller {
         } catch (e: Exception) {
             Log.e(TAG, "KWS 설치 실패", e)
             _kwsState.value = InstallState.ERROR
+        }
+    }
+
+    // --- TTS 설치 ---
+    suspend fun installTts(context: Context) {
+        if (_ttsState.value == InstallState.DOWNLOADING) return
+        _ttsState.value = InstallState.DOWNLOADING
+        _ttsProgress.value = 0
+
+        val ttsDir = File(context.filesDir, "models/tts")
+        ttsDir.mkdirs()
+
+        try {
+            // ONNX 모델 + 설정 파일 다운로드
+            val totalFiles = TTS_FILES.size + 1 // +1 for voice style
+            for ((index, fileName) in TTS_FILES.withIndex()) {
+                val destFile = File(ttsDir, fileName)
+                if (destFile.exists()) {
+                    _ttsProgress.value = ((index + 1) * 100) / totalFiles
+                    continue
+                }
+                withContext(Dispatchers.IO) {
+                    downloadFile("$TTS_BASE_URL/$fileName", destFile) { fileProgress ->
+                        _ttsProgress.value = ((index * 100) + fileProgress) / totalFiles
+                    }
+                }
+                Log.d(TAG, "TTS 다운로드 완료: $fileName")
+            }
+
+            // 보이스 스타일 다운로드
+            val voiceFile = File(ttsDir, "voice_style.json")
+            if (!voiceFile.exists()) {
+                withContext(Dispatchers.IO) {
+                    downloadFile(VOICE_STYLE_URL, voiceFile) { progress ->
+                        _ttsProgress.value = 90 + (progress / 10)
+                    }
+                }
+                Log.d(TAG, "TTS 보이스 스타일 다운로드 완료")
+            }
+
+            _ttsState.value = InstallState.INSTALLED
+            _ttsProgress.value = 100
+            Log.d(TAG, "TTS 모델 설치 완료")
+        } catch (e: Exception) {
+            Log.e(TAG, "TTS 설치 실패", e)
+            _ttsState.value = InstallState.ERROR
         }
     }
 

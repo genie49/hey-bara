@@ -16,6 +16,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -40,6 +41,7 @@ import com.bara.heybara.data.notification.BaraNotificationListener
 import com.bara.heybara.data.settings.SecurePreferences
 import com.bara.heybara.ui.theme.BaraColors
 import com.bara.heybara.ui.theme.HeyBaraTheme
+import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 
 class SettingsActivity : ComponentActivity() {
@@ -50,13 +52,15 @@ class SettingsActivity : ComponentActivity() {
     private val googleConsentLauncher = registerForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
-        val success = if (result.resultCode == RESULT_OK) {
-            val authResult = com.google.android.gms.auth.api.identity.Identity
-                .getAuthorizationClient(this)
-                .getAuthorizationResultFromIntent(result.data)
-            GoogleAuthManager.handleAuthResult(this, authResult)
-        } else false
-        onGoogleConsentResult?.invoke(success)
+        kotlinx.coroutines.MainScope().launch {
+            val success = if (result.resultCode == RESULT_OK) {
+                val authResult = com.google.android.gms.auth.api.identity.Identity
+                    .getAuthorizationClient(this@SettingsActivity)
+                    .getAuthorizationResultFromIntent(result.data)
+                GoogleAuthManager.handleAuthResult(this@SettingsActivity, authResult)
+            } else false
+            onGoogleConsentResult?.invoke(success)
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -105,6 +109,8 @@ fun SettingsScreen(
     val sttProgress by ModelInstaller.sttProgress.collectAsState()
     val kwsState by ModelInstaller.kwsState.collectAsState()
     val kwsProgress by ModelInstaller.kwsProgress.collectAsState()
+    val ttsState by ModelInstaller.ttsState.collectAsState()
+    val ttsProgress by ModelInstaller.ttsProgress.collectAsState()
 
     LaunchedEffect(Unit) {
         ModelInstaller.checkInstalled(context)
@@ -265,6 +271,16 @@ fun SettingsScreen(
                         state = kwsState,
                         progress = kwsProgress,
                         onInstall = { scope.launch { ModelInstaller.installKws(context) } }
+                    )
+
+                    HorizontalDivider(color = BaraColors.Background, thickness = 1.dp)
+
+                    // TTS 모델
+                    TtsModelRow(
+                        state = ttsState,
+                        progress = ttsProgress,
+                        onInstall = { scope.launch { ModelInstaller.installTts(context) } },
+                        context = context
                     )
                 }
             }
@@ -552,6 +568,75 @@ fun SettingsScreen(
                     )
                 }
             }
+        }
+    }
+}
+
+// TTS 모델 행 (듣기 버튼 포함)
+@Composable
+fun TtsModelRow(
+    state: ModelInstaller.InstallState,
+    progress: Int,
+    onInstall: () -> Unit,
+    context: android.content.Context
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("음성 합성 (Supertonic 2)", color = BaraColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                Text("~263MB · 한국어 고품질 TTS", color = BaraColors.TextTertiary, fontSize = 12.sp)
+            }
+            when (state) {
+                ModelInstaller.InstallState.INSTALLED -> {
+                    // 듣기 버튼
+                    IconButton(
+                        onClick = {
+                            val ttsDir = java.io.File(context.filesDir, "models/tts").absolutePath
+                            val engine = com.bara.heybara.data.tts.SupertonicTtsEngine(ttsDir)
+                            engine.loadModels()
+                            engine.speak("카피바라는 귀여워") { engine.release() }
+                        },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.VolumeUp,
+                            contentDescription = "듣기",
+                            tint = BaraColors.Coral,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("설치 완료", color = BaraColors.Green, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                }
+                ModelInstaller.InstallState.NOT_INSTALLED,
+                ModelInstaller.InstallState.ERROR -> {
+                    Button(
+                        onClick = onInstall,
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = BaraColors.Coral),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Text(if (state == ModelInstaller.InstallState.ERROR) "재시도" else "설치", fontSize = 13.sp)
+                    }
+                }
+                ModelInstaller.InstallState.DOWNLOADING -> {
+                    Text("${progress}%", color = BaraColors.Indigo, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
+        if (state == ModelInstaller.InstallState.DOWNLOADING) {
+            LinearProgressIndicator(
+                progress = { progress / 100f },
+                modifier = Modifier.fillMaxWidth(),
+                color = BaraColors.Coral,
+                trackColor = BaraColors.CardSurface,
+            )
+        }
+        if (state == ModelInstaller.InstallState.ERROR) {
+            Text("다운로드에 실패했습니다. 네트워크를 확인해 주세요.", color = BaraColors.Coral, fontSize = 12.sp)
         }
     }
 }
