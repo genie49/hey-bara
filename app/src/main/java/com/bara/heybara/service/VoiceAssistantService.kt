@@ -139,7 +139,7 @@ class VoiceAssistantService : Service() {
         return NotificationCompat.Builder(this, BaraApp.CHANNEL_ID)
             .setContentTitle("Hey Bara")
             .setContentText(text)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.drawable.ic_notification)
             .setOngoing(true)
             .build()
     }
