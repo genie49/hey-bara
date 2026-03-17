@@ -49,7 +49,7 @@ class VoiceAssistantService : Service() {
             val contactResolver = DeviceContactResolver(this)
             GoogleAuthManager.restore(this)
             val engine = KoogAgentEngine(apiKey, contactResolver)
-            engine.setContext(this)
+            engine.setContext(this, apiKey)
             if (GoogleAuthManager.isAuthenticated()) {
                 engine.setGoogleClients(GoogleCalendarClient(this), GoogleTasksClient(this))
             }

@@ -13,7 +13,10 @@ import ai.koog.prompt.executor.llms.all.simpleGoogleAIExecutor
 import ai.koog.prompt.llm.LLMCapability
 import ai.koog.prompt.llm.LLModel
 import ai.koog.prompt.llm.LLMProvider
+import com.bara.heybara.data.accessibility.AppControlAgent
+import com.bara.heybara.data.accessibility.BaraAccessibilityService
 import com.bara.heybara.data.calendar.GoogleCalendarClient
+import com.bara.heybara.data.settings.SecurePreferences
 import com.bara.heybara.data.notification.BaraNotificationListener
 import com.bara.heybara.data.tasks.GoogleTasksClient
 import com.bara.heybara.domain.action.ActionConfirmation
@@ -312,6 +315,37 @@ class KoogAgentEngine(
         }
     }
 
+    // ── 앱 제어 Tool ──
+
+    object ControlAppTool : SimpleTool<ControlAppTool.Args>(
+        argsSerializer = Args.serializer(),
+        name = "control_app",
+        description = "등록된 앱을 실행하고 목표를 달성한다. 스포티파이, 유튜브 등 등록된 앱을 조작할 때 사용한다."
+    ) {
+        var appContext: Context? = null
+        var geminiApiKey: String? = null
+        @Serializable
+        data class Args(
+            @property:LLMDescription("앱 패키지명 (예: com.spotify.music)") val packageName: String,
+            @property:LLMDescription("달성할 목표 (자연어)") val goal: String
+        )
+        override suspend fun execute(args: Args): String {
+            val ctx = appContext ?: return "앱 제어 서비스가 초기화되지 않았습니다."
+            val key = geminiApiKey ?: return "API Key가 설정되지 않았습니다."
+
+            if (!BaraAccessibilityService.isEnabled(ctx)) {
+                return "접근성 서비스 권한이 필요합니다. 설정에서 Hey Bara의 접근성 서비스를 허용해 주세요."
+            }
+
+            val registeredApps = SecurePreferences(ctx).getRegisteredApps()
+            if (args.packageName !in registeredApps) {
+                return "'${args.packageName}'은(는) 등록되지 않은 앱입니다. 설정에서 추가해 주세요."
+            }
+
+            return AppControlAgent(key).execute(ctx, args.packageName, args.goal)
+        }
+    }
+
     // ── Engine 설정 ──
 
     private val executor = simpleGoogleAIExecutor(apiKey)
@@ -340,6 +374,7 @@ class KoogAgentEngine(
         tool(DeleteTaskTool)
         tool(SendKakaoTool)
         tool(ListNotificationsTool)
+        tool(ControlAppTool)
     }
 
     private fun buildSystemPrompt(): String {
@@ -361,6 +396,7 @@ ${BASE_SYSTEM_PROMPT.trimIndent()}
 
 카카오톡 메시지를 보내라는 요청이 오면 send_kakao를 사용해. 최근 카톡 알림이 온 상대에게만 보낼 수 있다.
 알림 관련 요청이 오면 list_notifications를 사용해.
+앱을 직접 조작해야 하는 요청이 오면 control_app을 사용해. 등록된 앱만 조작할 수 있다.
 """.trimIndent()
 
         if (conversationHistory.isEmpty()) return base
@@ -392,10 +428,12 @@ ${BASE_SYSTEM_PROMPT.trimIndent()}
         }
     }
 
-    fun setContext(context: Context) {
+    fun setContext(context: Context, apiKey: String? = null) {
         MakeCallTool.appContext = context.applicationContext
         SendKakaoTool.appContext = context.applicationContext
         ListNotificationsTool.appContext = context.applicationContext
+        ControlAppTool.appContext = context.applicationContext
+        ControlAppTool.geminiApiKey = apiKey
     }
 
     fun setGoogleClients(calendarClient: GoogleCalendarClient?, tasksClient: GoogleTasksClient?) {

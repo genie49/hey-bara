@@ -53,9 +53,27 @@ class SecurePreferences(context: Context) {
         prefs.edit().remove(KEY_GOOGLE_EMAIL).apply()
     }
 
+    // 등록된 앱 (앱 제어 에이전트)
+    fun getRegisteredApps(): Set<String> {
+        return prefs.getStringSet(KEY_REGISTERED_APPS, emptySet()) ?: emptySet()
+    }
+
+    fun addRegisteredApp(packageName: String) {
+        val apps = getRegisteredApps().toMutableSet()
+        apps.add(packageName)
+        prefs.edit().putStringSet(KEY_REGISTERED_APPS, apps).apply()
+    }
+
+    fun removeRegisteredApp(packageName: String) {
+        val apps = getRegisteredApps().toMutableSet()
+        apps.remove(packageName)
+        prefs.edit().putStringSet(KEY_REGISTERED_APPS, apps).apply()
+    }
+
     companion object {
         private const val KEY_GEMINI_API = "gemini_api_key"
         private const val KEY_WAKE_SENSITIVITY = "wake_word_sensitivity"
         private const val KEY_GOOGLE_EMAIL = "google_account_email"
+        private const val KEY_REGISTERED_APPS = "registered_apps"
     }
 }

@@ -77,7 +77,7 @@ class MainViewModel : ViewModel() {
         val contactResolver = DeviceContactResolver(context)
         GoogleAuthManager.restore(context)
         agentEngine = KoogAgentEngine(apiKey, contactResolver).also {
-            it.setContext(context)
+            it.setContext(context, apiKey)
             if (GoogleAuthManager.isAuthenticated()) {
                 it.setGoogleClients(
                     GoogleCalendarClient(context),

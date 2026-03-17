@@ -7,6 +7,9 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import android.widget.ImageView
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -16,7 +19,10 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -26,6 +32,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.content.Intent
 import android.provider.Settings
+import android.content.pm.ApplicationInfo
+import com.bara.heybara.data.accessibility.BaraAccessibilityService
 import com.bara.heybara.data.auth.GoogleAuthManager
 import com.bara.heybara.data.model.ModelInstaller
 import com.bara.heybara.data.notification.BaraNotificationListener
@@ -304,6 +312,190 @@ fun SettingsScreen(
                             Text("설정", fontSize = 13.sp)
                         }
                     }
+                }
+            }
+
+            // 앱 제어 섹션
+            var registeredApps by remember { mutableStateOf(securePrefs.getRegisteredApps()) }
+            var showAppPicker by remember { mutableStateOf(false) }
+            var a11yEnabled by remember { mutableStateOf(BaraAccessibilityService.isEnabled(context)) }
+
+            // 접근성 권한도 resume 시 갱신
+            LaunchedEffect(lifecycleOwner) {
+                val observer2 = androidx.lifecycle.LifecycleEventObserver { _, event ->
+                    if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                        a11yEnabled = BaraAccessibilityService.isEnabled(context)
+                    }
+                }
+                lifecycleOwner.lifecycle.addObserver(observer2)
+            }
+
+            // 앱 선택 다이얼로그
+            if (showAppPicker) {
+                val pm = context.packageManager
+                var searchQuery by remember { mutableStateOf("") }
+                val allApps = remember {
+                    pm.getInstalledApplications(0)
+                        .filter { pm.getLaunchIntentForPackage(it.packageName) != null }
+                        .filter { it.packageName != context.packageName }
+                        .map { it to pm.getApplicationLabel(it).toString() }
+                        .sortedBy { it.second }
+                }
+                val filteredApps = allApps
+                    .filter { it.first.packageName !in registeredApps }
+                    .filter {
+                        searchQuery.isBlank() ||
+                        it.second.contains(searchQuery, ignoreCase = true) ||
+                        it.first.packageName.contains(searchQuery, ignoreCase = true)
+                    }
+
+                Dialog(
+                    onDismissRequest = { showAppPicker = false },
+                    properties = DialogProperties(usePlatformDefaultWidth = false)
+                ) {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth(0.92f)
+                            .fillMaxHeight(0.7f),
+                        shape = RoundedCornerShape(20.dp),
+                        color = BaraColors.Background
+                    ) {
+                        Column {
+                            Text(
+                                "앱 선택",
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = BaraColors.TextPrimary,
+                                modifier = Modifier.padding(20.dp, 20.dp, 20.dp, 12.dp)
+                            )
+                            TextField(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                placeholder = { Text("앱 검색...", color = BaraColors.TextTertiary) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = TextFieldDefaults.colors(
+                                    focusedContainerColor = BaraColors.CardSurface,
+                                    unfocusedContainerColor = BaraColors.CardSurface,
+                                    focusedIndicatorColor = Color.Transparent,
+                                    unfocusedIndicatorColor = Color.Transparent
+                                ),
+                                singleLine = true
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            LazyColumn(
+                                modifier = Modifier.weight(1f),
+                                contentPadding = PaddingValues(horizontal = 8.dp)
+                            ) {
+                                items(filteredApps.size) { index ->
+                                    val (appInfo, appName) = filteredApps[index]
+                                    Surface(
+                                        onClick = {
+                                            securePrefs.addRegisteredApp(appInfo.packageName)
+                                            registeredApps = securePrefs.getRegisteredApps()
+                                            showAppPicker = false
+                                        },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = BaraColors.Background
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(12.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                        ) {
+                                            val icon = pm.getApplicationIcon(appInfo)
+                                            AndroidView(
+                                                factory = { ctx -> ImageView(ctx).apply { setImageDrawable(icon) } },
+                                                modifier = Modifier.size(40.dp)
+                                            )
+                                            Column {
+                                                Text(appName, fontSize = 14.sp, color = BaraColors.TextPrimary, fontWeight = FontWeight.Medium)
+                                                Text(appInfo.packageName, fontSize = 11.sp, color = BaraColors.TextTertiary)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            TextButton(
+                                onClick = { showAppPicker = false },
+                                modifier = Modifier
+                                    .align(Alignment.End)
+                                    .padding(12.dp)
+                            ) { Text("취소") }
+                        }
+                    }
+                }
+            }
+
+            SettingsSection(label = "앱 제어") {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    // 접근성 권한
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("접근성 서비스", color = BaraColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                            Text("앱 조작 기능에 필요", color = BaraColors.TextTertiary, fontSize = 12.sp)
+                        }
+                        if (a11yEnabled) {
+                            Text("허용됨", color = BaraColors.Green, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        } else {
+                            Button(
+                                onClick = { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = BaraColors.Coral),
+                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                            ) { Text("설정", fontSize = 13.sp) }
+                        }
+                    }
+
+                    HorizontalDivider(color = BaraColors.Background, thickness = 1.dp)
+
+                    // 등록된 앱 목록
+                    val pm = context.packageManager
+                    registeredApps.forEach { pkg ->
+                        val appInfo2 = try { pm.getApplicationInfo(pkg, 0) } catch (_: Exception) { null }
+                        val appName = appInfo2?.let { pm.getApplicationLabel(it).toString() } ?: pkg
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            if (appInfo2 != null) {
+                                val icon = pm.getApplicationIcon(appInfo2)
+                                AndroidView(
+                                    factory = { ctx -> ImageView(ctx).apply { setImageDrawable(icon) } },
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(appName, color = BaraColors.TextPrimary, fontSize = 14.sp)
+                                Text(pkg, color = BaraColors.TextTertiary, fontSize = 11.sp)
+                            }
+                            IconButton(
+                                onClick = {
+                                    securePrefs.removeRegisteredApp(pkg)
+                                    registeredApps = securePrefs.getRegisteredApps()
+                                },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(Icons.Default.Close, contentDescription = "삭제", tint = BaraColors.TextTertiary, modifier = Modifier.size(18.dp))
+                            }
+                        }
+                    }
+
+                    // 앱 추가 버튼
+                    Button(
+                        onClick = { showAppPicker = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = BaraColors.Coral)
+                    ) { Text("앱 추가") }
                 }
             }
 
