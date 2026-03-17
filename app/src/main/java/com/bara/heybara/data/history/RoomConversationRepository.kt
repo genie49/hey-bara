@@ -19,6 +19,10 @@ class RoomConversationRepository(
         )
     }
 
+    override suspend fun deleteAll() {
+        dao.deleteAll()
+    }
+
     override suspend fun getAll(): List<Conversation> {
         return dao.getAll().map {
             Conversation(

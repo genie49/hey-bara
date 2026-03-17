@@ -13,8 +13,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Sms
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -74,6 +75,7 @@ fun HistoryListScreen(
     previewData: List<Conversation>? = null
 ) {
     val conversations = remember { mutableStateOf<List<Conversation>>(emptyList()) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
@@ -84,6 +86,31 @@ fun HistoryListScreen(
                 conversations.value = repo?.getAll() ?: emptyList()
             }
         }
+    }
+
+    // 삭제 확인 다이얼로그
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("히스토리 삭제", fontWeight = FontWeight.Bold) },
+            text = { Text("모든 대화 기록을 삭제할까요?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    scope.launch {
+                        repo?.deleteAll()
+                        conversations.value = emptyList()
+                    }
+                    showDeleteConfirm = false
+                }) {
+                    Text("삭제", color = BaraColors.Coral)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text("취소")
+                }
+            }
+        )
     }
 
     Column(
@@ -98,8 +125,7 @@ fun HistoryListScreen(
                 .fillMaxWidth()
                 .height(56.dp)
                 .padding(horizontal = 24.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBack, modifier = Modifier.size(22.dp)) {
                 Icon(
@@ -108,12 +134,23 @@ fun HistoryListScreen(
                     tint = BaraColors.TextPrimary
                 )
             }
+            Spacer(modifier = Modifier.width(12.dp))
             Text(
                 "대화 히스토리",
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
-                color = BaraColors.TextPrimary
+                color = BaraColors.TextPrimary,
+                modifier = Modifier.weight(1f)
             )
+            if (conversations.value.isNotEmpty()) {
+                IconButton(onClick = { showDeleteConfirm = true }) {
+                    Icon(
+                        Icons.Filled.DeleteOutline,
+                        contentDescription = "전체 삭제",
+                        tint = BaraColors.TextSecondary
+                    )
+                }
+            }
         }
 
         if (conversations.value.isEmpty()) {

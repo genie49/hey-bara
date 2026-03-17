@@ -50,6 +50,12 @@ class MainViewModel : ViewModel() {
         _messages.value = _messages.value + message
     }
 
+    fun clearChat() {
+        _messages.value = emptyList()
+        agentEngine?.release()
+        agentEngine = null
+    }
+
     fun updatePartialText(text: String) {
         _sttPartialText.value = text
     }

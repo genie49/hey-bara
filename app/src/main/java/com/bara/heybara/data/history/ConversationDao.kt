@@ -11,4 +11,7 @@ interface ConversationDao {
 
     @Query("SELECT * FROM conversations ORDER BY timestamp DESC")
     suspend fun getAll(): List<ConversationEntity>
+
+    @Query("DELETE FROM conversations")
+    suspend fun deleteAll()
 }

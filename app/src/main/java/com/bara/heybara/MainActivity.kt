@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -174,6 +175,9 @@ fun MainScreen(viewModel: MainViewModel, overrideHasApiKey: Boolean? = null) {
                 StatusBadge(state)
             }
             Row {
+                IconButton(onClick = { viewModel.clearChat() }) {
+                    Icon(Icons.Filled.Add, contentDescription = "새 채팅", tint = BaraColors.TextSecondary)
+                }
                 IconButton(onClick = {
                     context.startActivity(Intent(context, HistoryActivity::class.java))
                 }) {
