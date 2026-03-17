@@ -4,10 +4,9 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -15,7 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Call
-import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Sms
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -23,10 +22,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.bara.heybara.R
 import com.bara.heybara.data.history.AppDatabase
 import com.bara.heybara.data.history.RoomConversationRepository
 import com.bara.heybara.domain.history.Conversation
@@ -46,16 +46,34 @@ class HistoryActivity : ComponentActivity() {
         )
         setContent {
             HeyBaraTheme {
-                HistoryScreen(repo = repo, onBack = { finish() })
+                var selectedConversation by remember { mutableStateOf<Conversation?>(null) }
+
+                if (selectedConversation != null) {
+                    HistoryDetailScreen(
+                        conversation = selectedConversation!!,
+                        onBack = { selectedConversation = null }
+                    )
+                } else {
+                    HistoryListScreen(
+                        repo = repo,
+                        onBack = { finish() },
+                        onSelect = { selectedConversation = it }
+                    )
+                }
             }
         }
     }
 }
 
+// 히스토리 목록 화면
 @Composable
-fun HistoryScreen(repo: RoomConversationRepository? = null, onBack: () -> Unit = {}, previewData: List<Conversation>? = null) {
+fun HistoryListScreen(
+    repo: RoomConversationRepository? = null,
+    onBack: () -> Unit = {},
+    onSelect: (Conversation) -> Unit = {},
+    previewData: List<Conversation>? = null
+) {
     val conversations = remember { mutableStateOf<List<Conversation>>(emptyList()) }
-    val selectedConversation = remember { mutableStateOf<Conversation?>(null) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
@@ -66,30 +84,6 @@ fun HistoryScreen(repo: RoomConversationRepository? = null, onBack: () -> Unit =
                 conversations.value = repo?.getAll() ?: emptyList()
             }
         }
-    }
-
-    // 대화 전문 다이얼로그
-    selectedConversation.value?.let { conv ->
-        AlertDialog(
-            onDismissRequest = { selectedConversation.value = null },
-            title = { Text(conv.topic, fontWeight = FontWeight.Bold) },
-            text = {
-                Column(
-                    modifier = Modifier.verticalScroll(rememberScrollState())
-                ) {
-                    if (conv.transcript.isNotBlank()) {
-                        Text(conv.transcript, fontSize = 14.sp, color = BaraColors.TextPrimary)
-                    } else {
-                        Text("대화 내용이 없습니다", color = BaraColors.TextTertiary)
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { selectedConversation.value = null }) {
-                    Text("닫기")
-                }
-            }
-        )
     }
 
     Column(
@@ -130,7 +124,6 @@ fun HistoryScreen(repo: RoomConversationRepository? = null, onBack: () -> Unit =
                 Text("대화 기록이 없습니다", color = BaraColors.TextTertiary)
             }
         } else {
-            // 날짜별 그룹핑
             val grouped = groupByDate(conversations.value)
 
             LazyColumn(
@@ -150,12 +143,122 @@ fun HistoryScreen(repo: RoomConversationRepository? = null, onBack: () -> Unit =
                         )
                     }
                     items(items) { conversation ->
-                        HistoryItem(conversation, onTap = {
-                            selectedConversation.value = conversation
-                        })
+                        HistoryItem(conversation, onTap = { onSelect(conversation) })
                     }
                 }
             }
+        }
+    }
+}
+
+// 히스토리 상세 화면 — 메인 채팅 UI와 동일한 Read-only 뷰
+@Composable
+fun HistoryDetailScreen(conversation: Conversation, onBack: () -> Unit) {
+    val messages = parseTranscript(conversation.transcript)
+    val timeFormat = SimpleDateFormat("a h:mm", Locale.KOREAN)
+    val timeStr = timeFormat.format(Date(conversation.timestamp))
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(BaraColors.Background)
+            .statusBarsPadding()
+    ) {
+        // 헤더
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+                .padding(horizontal = 24.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            IconButton(onClick = onBack, modifier = Modifier.size(22.dp)) {
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "뒤로",
+                    tint = BaraColors.TextPrimary
+                )
+            }
+            Column {
+                Text(
+                    conversation.topic,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = BaraColors.TextPrimary,
+                    maxLines = 1
+                )
+                Text(
+                    timeStr,
+                    fontSize = 12.sp,
+                    color = BaraColors.TextTertiary
+                )
+            }
+        }
+
+        // 채팅 버블 목록
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(vertical = 16.dp)
+        ) {
+            items(messages) { msg ->
+                HistoryChatBubble(msg)
+            }
+        }
+    }
+}
+
+data class TranscriptMessage(val text: String, val isUser: Boolean)
+
+// "사용자: ...\n바라: ..." 형식의 transcript를 파싱
+fun parseTranscript(transcript: String): List<TranscriptMessage> {
+    if (transcript.isBlank()) return emptyList()
+    val messages = mutableListOf<TranscriptMessage>()
+    val lines = transcript.split("\n")
+    for (line in lines) {
+        when {
+            line.startsWith("사용자: ") -> {
+                messages.add(TranscriptMessage(line.removePrefix("사용자: "), isUser = true))
+            }
+            line.startsWith("바라: ") -> {
+                messages.add(TranscriptMessage(line.removePrefix("바라: "), isUser = false))
+            }
+        }
+    }
+    return messages
+}
+
+@Composable
+fun HistoryChatBubble(message: TranscriptMessage) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = if (message.isUser) Arrangement.End else Arrangement.Start,
+        verticalAlignment = Alignment.Bottom
+    ) {
+        if (!message.isUser) {
+            Image(
+                painter = painterResource(R.drawable.bara_avatar),
+                contentDescription = "바라",
+                modifier = Modifier.size(28.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+        }
+        Surface(
+            color = if (message.isUser) BaraColors.Coral else BaraColors.CardSurface,
+            shape = if (message.isUser)
+                RoundedCornerShape(18.dp, 18.dp, 4.dp, 18.dp)
+            else
+                RoundedCornerShape(18.dp, 18.dp, 18.dp, 4.dp)
+        ) {
+            Text(
+                message.text,
+                color = if (message.isUser) BaraColors.Background else BaraColors.TextPrimary,
+                fontSize = 14.sp,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+            )
         }
     }
 }
@@ -178,7 +281,6 @@ fun HistoryItem(conversation: Conversation, onTap: () -> Unit = {}) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // 카테고리 아이콘
             Box(
                 modifier = Modifier
                     .size(40.dp)
@@ -208,8 +310,8 @@ fun HistoryItem(conversation: Conversation, onTap: () -> Unit = {}) {
 fun getCategoryStyle(category: String): Pair<ImageVector, Color> {
     return when (category) {
         "call" -> Icons.Filled.Call to BaraColors.Coral
-        "sms" -> Icons.Filled.Sms to Color(0xFF14B8A6) // teal
-        else -> Icons.Filled.Chat to BaraColors.TextSecondary
+        "sms" -> Icons.Filled.Sms to Color(0xFF14B8A6)
+        else -> Icons.AutoMirrored.Filled.Chat to BaraColors.TextSecondary
     }
 }
 
@@ -232,20 +334,5 @@ fun groupByDate(conversations: List<Conversation>): List<Pair<String, List<Conve
     val order = listOf("오늘", "어제", "이전")
     return order.mapNotNull { label ->
         groups[label]?.let { label to it }
-    }
-}
-
-@Preview(showBackground = true, widthDp = 360, heightDp = 720)
-@Composable
-fun HistoryScreenPreview() {
-    val now = System.currentTimeMillis()
-    val sampleData = listOf(
-        Conversation(1, "엄마한테 전화 걸기", "call", "음성", now - 3600000, ""),
-        Conversation(2, "치과 일정 추가", "chat", "텍스트", now - 7200000, ""),
-        Conversation(3, "철수한테 카톡 보내기", "sms", "음성", now - 90000000, ""),
-        Conversation(4, "알림 확인", "chat", "음성", now - 100000000, ""),
-    )
-    HeyBaraTheme {
-        HistoryScreen(previewData = sampleData)
     }
 }

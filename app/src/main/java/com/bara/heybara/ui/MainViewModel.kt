@@ -6,9 +6,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.bara.heybara.data.action.DeviceContactResolver
 import com.bara.heybara.data.agent.KoogAgentEngine
+import com.bara.heybara.data.settings.SecurePreferences
 import com.bara.heybara.data.history.AppDatabase
 import com.bara.heybara.data.history.RoomConversationRepository
-import com.bara.heybara.data.settings.SecurePreferences
 import com.bara.heybara.domain.history.Conversation
 import com.bara.heybara.domain.history.ConversationRepository
 import com.bara.heybara.domain.session.SessionState
@@ -40,6 +40,7 @@ class MainViewModel : ViewModel() {
 
     private var agentEngine: KoogAgentEngine? = null
     private var conversationRepository: ConversationRepository? = null
+    private var appContext: Context? = null
 
     fun updateState(state: SessionState) {
         _sessionState.value = state
@@ -59,6 +60,7 @@ class MainViewModel : ViewModel() {
 
     fun initAgent(context: Context) {
         if (agentEngine != null) return
+        appContext = context.applicationContext
         val apiKey = SecurePreferences(context).getGeminiApiKey() ?: return
         val contactResolver = DeviceContactResolver(context)
         agentEngine = KoogAgentEngine(apiKey, contactResolver).also {
@@ -94,7 +96,7 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    // LLM 요약 후 Room DB에 저장
+    // LLM 요약 후 Room DB에 저장 (별도 에이전트로 요약하여 대화 히스토리에 섞이지 않음)
     private fun saveConversationHistory() {
         val engine = agentEngine ?: return
         val repo = conversationRepository ?: return
@@ -103,10 +105,16 @@ class MainViewModel : ViewModel() {
 
         viewModelScope.launch {
             try {
-                val summaryResponse = engine.process(
-                    "이전 대화를 한 줄로 요약하고 카테고리를 분류해줘. " +
-                    "형식: 요약|카테고리 (카테고리는 call, sms, chat 중 하나)"
+                // 별도 에이전트로 요약 (메인 대화 히스토리에 영향 없음)
+                val summaryAgent = KoogAgentEngine(
+                    SecurePreferences(appContext!!).getGeminiApiKey()!!
                 )
+                val summaryResponse = summaryAgent.process(
+                    "다음 대화를 한 줄로 요약하고 카테고리를 분류해줘. " +
+                    "형식: 요약|카테고리 (카테고리는 call, sms, chat 중 하나)\n\n$transcript"
+                )
+                summaryAgent.release()
+
                 val parts = summaryResponse.split("|").map { it.trim() }
                 val topic = parts.getOrElse(0) { "대화" }
                 val category = parts.getOrElse(1) { "chat" }.lowercase()

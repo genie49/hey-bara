@@ -415,9 +415,7 @@ fun ChatBubble(message: ChatMessage) {
             Image(
                 painter = painterResource(R.drawable.bara_avatar),
                 contentDescription = "바라",
-                modifier = Modifier
-                    .size(28.dp)
-                    .clip(CircleShape)
+                modifier = Modifier.size(28.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
         }
