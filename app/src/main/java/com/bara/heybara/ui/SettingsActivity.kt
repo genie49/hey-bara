@@ -23,6 +23,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.app.Activity
+import com.bara.heybara.data.auth.GoogleAuthManager
 import com.bara.heybara.data.model.ModelInstaller
 import com.bara.heybara.data.settings.SecurePreferences
 import com.bara.heybara.ui.theme.BaraColors
@@ -62,7 +64,10 @@ fun SettingsScreen(securePrefs: SecurePreferences, onBack: () -> Unit) {
 
     LaunchedEffect(Unit) {
         ModelInstaller.checkInstalled(context)
+        GoogleAuthManager.restore(context)
     }
+
+    var googleEmail by remember { mutableStateOf(GoogleAuthManager.getAccountEmail()) }
 
     Column(
         modifier = Modifier
@@ -154,6 +159,44 @@ fun SettingsScreen(securePrefs: SecurePreferences, onBack: () -> Unit) {
                         ) {
                             Text("저장")
                         }
+                    }
+                }
+            }
+
+            // Google 계정 섹션
+            SettingsSection(label = "Google 계정 (캘린더/할일)") {
+                if (googleEmail != null) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(googleEmail!!, color = BaraColors.TextPrimary, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                        IconButton(
+                            onClick = {
+                                GoogleAuthManager.signOut(context)
+                                googleEmail = null
+                            },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(Icons.Default.Close, contentDescription = "연결 해제", tint = BaraColors.TextTertiary, modifier = Modifier.size(18.dp))
+                        }
+                    }
+                } else {
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                val activity = context as? Activity
+                                if (activity != null) {
+                                    val success = GoogleAuthManager.signIn(activity)
+                                    if (success) googleEmail = GoogleAuthManager.getAccountEmail()
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = BaraColors.Coral)
+                    ) {
+                        Text("Google 계정 연결")
                     }
                 }
             }

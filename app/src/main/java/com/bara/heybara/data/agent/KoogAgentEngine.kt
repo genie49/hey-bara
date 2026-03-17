@@ -13,11 +13,16 @@ import ai.koog.prompt.executor.llms.all.simpleGoogleAIExecutor
 import ai.koog.prompt.llm.LLMCapability
 import ai.koog.prompt.llm.LLModel
 import ai.koog.prompt.llm.LLMProvider
+import com.bara.heybara.data.calendar.GoogleCalendarClient
+import com.bara.heybara.data.tasks.GoogleTasksClient
 import com.bara.heybara.domain.action.ActionConfirmation
 import com.bara.heybara.domain.action.ActionType
 import com.bara.heybara.domain.action.ContactResolver
 import com.bara.heybara.domain.agent.AgentEngine
 import kotlinx.serialization.Serializable
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class KoogAgentEngine(
     private val apiKey: String,
@@ -49,73 +54,50 @@ class KoogAgentEngine(
         SearchContactsTool.resolver = contactResolver
     }
 
-    // 대화 기록 직접 관리
     private val conversationHistory = mutableListOf<Pair<String, String>>()
 
-    // 연락처 검색 Tool
+    // ── 연락처/전화/SMS Tool (기존) ──
+
     object SearchContactsTool : SimpleTool<SearchContactsTool.Args>(
         argsSerializer = Args.serializer(),
         name = "search_contacts",
         description = "연락처에서 이름으로 검색한다. 전화나 문자를 보내기 전에 반드시 먼저 호출해야 한다."
     ) {
         var resolver: ContactResolver? = null
-
         @Serializable
-        data class Args(
-            @property:LLMDescription("검색할 이름 또는 별명")
-            val query: String
-        )
-
+        data class Args(@property:LLMDescription("검색할 이름 또는 별명") val query: String)
         override suspend fun execute(args: Args): String {
             val contacts = resolver?.searchContacts(args.query) ?: emptyList()
-            Log.d("AgentTool", "연락처 검색: query=${args.query}, 결과=${contacts.size}건")
-            return if (contacts.isEmpty()) {
-                "연락처에서 '${args.query}'을(를) 찾을 수 없습니다."
-            } else {
-                contacts.joinToString("\n") { "${it.name}: ${it.phoneNumber}" }
-            }
+            return if (contacts.isEmpty()) "연락처에서 '${args.query}'을(를) 찾을 수 없습니다."
+            else contacts.joinToString("\n") { "${it.name}: ${it.phoneNumber}" }
         }
     }
 
-    // 전화 걸기 Tool — 확인 후 실제 실행
     object MakeCallTool : SimpleTool<MakeCallTool.Args>(
         argsSerializer = Args.serializer(),
         name = "make_call",
         description = "전화번호로 전화를 건다. search_contacts로 번호를 먼저 확인한 후 호출해야 한다."
     ) {
         var appContext: Context? = null
-
         @Serializable
         data class Args(
-            @property:LLMDescription("전화할 사람 이름")
-            val contact: String,
-            @property:LLMDescription("전화번호 (예: 010-1234-5678)")
-            val phoneNumber: String
+            @property:LLMDescription("전화할 사람 이름") val contact: String,
+            @property:LLMDescription("전화번호 (예: 010-1234-5678)") val phoneNumber: String
         )
-
         override suspend fun execute(args: Args): String {
-            val confirmed = ActionConfirmation.requestConfirmation(
-                "${args.contact}님에게 전화를 겁니다",
-                ActionType.CALL
-            )
+            val confirmed = ActionConfirmation.requestConfirmation("${args.contact}님에게 전화를 겁니다", ActionType.CALL)
             if (!confirmed) return "사용자가 취소했습니다."
-
             return try {
                 val intent = Intent(Intent.ACTION_CALL).apply {
                     data = Uri.parse("tel:${args.phoneNumber}")
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
                 appContext?.startActivity(intent)
-                Log.d("AgentTool", "전화 걸기 실행: ${args.contact}(${args.phoneNumber})")
                 "${args.contact}(${args.phoneNumber})에게 전화를 걸었습니다."
-            } catch (e: Exception) {
-                Log.e("AgentTool", "전화 걸기 실패", e)
-                "전화 걸기에 실패했습니다: ${e.message}"
-            }
+            } catch (e: Exception) { "전화 걸기에 실패했습니다: ${e.message}" }
         }
     }
 
-    // SMS 보내기 Tool — 확인 후 실제 실행
     object SendSmsTool : SimpleTool<SendSmsTool.Args>(
         argsSerializer = Args.serializer(),
         name = "send_sms",
@@ -123,33 +105,157 @@ class KoogAgentEngine(
     ) {
         @Serializable
         data class Args(
-            @property:LLMDescription("받는 사람 이름")
-            val contact: String,
-            @property:LLMDescription("전화번호 (예: 010-1234-5678)")
-            val phoneNumber: String,
-            @property:LLMDescription("보낼 메시지 내용")
-            val message: String
+            @property:LLMDescription("받는 사람 이름") val contact: String,
+            @property:LLMDescription("전화번호 (예: 010-1234-5678)") val phoneNumber: String,
+            @property:LLMDescription("보낼 메시지 내용") val message: String
         )
-
         override suspend fun execute(args: Args): String {
-            val confirmed = ActionConfirmation.requestConfirmation(
-                "${args.contact}님에게 '${args.message}'라고 문자를 보냅니다",
-                ActionType.SMS
-            )
+            val confirmed = ActionConfirmation.requestConfirmation("${args.contact}님에게 '${args.message}'라고 문자를 보냅니다", ActionType.SMS)
             if (!confirmed) return "사용자가 취소했습니다."
-
             return try {
                 @Suppress("DEPRECATION")
-                val smsManager = SmsManager.getDefault()
-                smsManager.sendTextMessage(args.phoneNumber, null, args.message, null, null)
-                Log.d("AgentTool", "SMS 전송 실행: ${args.contact}(${args.phoneNumber}), ${args.message}")
+                SmsManager.getDefault().sendTextMessage(args.phoneNumber, null, args.message, null, null)
                 "${args.contact}(${args.phoneNumber})에게 '${args.message}'라고 문자를 보냈습니다."
-            } catch (e: Exception) {
-                Log.e("AgentTool", "SMS 전송 실패", e)
-                "문자 보내기에 실패했습니다: ${e.message}"
-            }
+            } catch (e: Exception) { "문자 보내기에 실패했습니다: ${e.message}" }
         }
     }
+
+    // ── 캘린더 Tool ──
+
+    object ListEventsTool : SimpleTool<ListEventsTool.Args>(
+        argsSerializer = Args.serializer(),
+        name = "list_events",
+        description = "캘린더에서 일정을 조회한다."
+    ) {
+        var calendarClient: GoogleCalendarClient? = null
+        @Serializable
+        data class Args(
+            @property:LLMDescription("조회 시작 날짜 (YYYY-MM-DD)") val date: String,
+            @property:LLMDescription("조회 범위 일수 (기본 1)") val days: Int = 1
+        )
+        override suspend fun execute(args: Args): String {
+            val client = calendarClient ?: return "Google 계정이 연결되지 않았습니다. 설정에서 연결해 주세요."
+            return client.listEvents(args.date, args.days)
+        }
+    }
+
+    object CreateEventTool : SimpleTool<CreateEventTool.Args>(
+        argsSerializer = Args.serializer(),
+        name = "create_event",
+        description = "캘린더에 새 일정을 추가한다."
+    ) {
+        var calendarClient: GoogleCalendarClient? = null
+        @Serializable
+        data class Args(
+            @property:LLMDescription("일정 제목") val title: String,
+            @property:LLMDescription("시작 시간 (ISO 8601, 예: 2026-03-18T15:00:00+09:00)") val startDateTime: String,
+            @property:LLMDescription("종료 시간 (ISO 8601, 생략하면 시작+1시간)") val endDateTime: String = "",
+            @property:LLMDescription("설명 (선택)") val description: String = ""
+        )
+        override suspend fun execute(args: Args): String {
+            val client = calendarClient ?: return "Google 계정이 연결되지 않았습니다. 설정에서 연결해 주세요."
+            return client.createEvent(args.title, args.startDateTime, args.endDateTime.ifBlank { null }, args.description.ifBlank { null })
+        }
+    }
+
+    object UpdateEventTool : SimpleTool<UpdateEventTool.Args>(
+        argsSerializer = Args.serializer(),
+        name = "update_event",
+        description = "캘린더 일정을 수정한다. list_events로 eventId를 먼저 확인해야 한다."
+    ) {
+        var calendarClient: GoogleCalendarClient? = null
+        @Serializable
+        data class Args(
+            @property:LLMDescription("일정 ID") val eventId: String,
+            @property:LLMDescription("변경할 제목 (선택)") val title: String = "",
+            @property:LLMDescription("변경할 시작 시간 (ISO 8601, 선택)") val startDateTime: String = "",
+            @property:LLMDescription("변경할 종료 시간 (ISO 8601, 선택)") val endDateTime: String = ""
+        )
+        override suspend fun execute(args: Args): String {
+            val client = calendarClient ?: return "Google 계정이 연결되지 않았습니다. 설정에서 연결해 주세요."
+            return client.updateEvent(args.eventId, args.title.ifBlank { null }, args.startDateTime.ifBlank { null }, args.endDateTime.ifBlank { null })
+        }
+    }
+
+    object DeleteEventTool : SimpleTool<DeleteEventTool.Args>(
+        argsSerializer = Args.serializer(),
+        name = "delete_event",
+        description = "캘린더 일정을 삭제한다. list_events로 eventId를 먼저 확인해야 한다."
+    ) {
+        var calendarClient: GoogleCalendarClient? = null
+        @Serializable
+        data class Args(@property:LLMDescription("삭제할 일정 ID") val eventId: String)
+        override suspend fun execute(args: Args): String {
+            val client = calendarClient ?: return "Google 계정이 연결되지 않았습니다. 설정에서 연결해 주세요."
+            return client.deleteEvent(args.eventId)
+        }
+    }
+
+    // ── 할일 Tool ──
+
+    object ListTasksTool : SimpleTool<ListTasksTool.Args>(
+        argsSerializer = Args.serializer(),
+        name = "list_tasks",
+        description = "할일 목록을 조회한다."
+    ) {
+        var tasksClient: GoogleTasksClient? = null
+        @Serializable
+        data class Args(
+            @property:LLMDescription("완료된 할일도 포함할지 여부 (기본 false)") val showCompleted: Boolean = false
+        )
+        override suspend fun execute(args: Args): String {
+            val client = tasksClient ?: return "Google 계정이 연결되지 않았습니다. 설정에서 연결해 주세요."
+            return client.listTasks(args.showCompleted)
+        }
+    }
+
+    object CreateTaskTool : SimpleTool<CreateTaskTool.Args>(
+        argsSerializer = Args.serializer(),
+        name = "create_task",
+        description = "새 할일을 추가한다."
+    ) {
+        var tasksClient: GoogleTasksClient? = null
+        @Serializable
+        data class Args(
+            @property:LLMDescription("할일 제목") val title: String,
+            @property:LLMDescription("기한 (YYYY-MM-DD, 선택)") val dueDate: String = "",
+            @property:LLMDescription("메모 (선택)") val notes: String = ""
+        )
+        override suspend fun execute(args: Args): String {
+            val client = tasksClient ?: return "Google 계정이 연결되지 않았습니다. 설정에서 연결해 주세요."
+            return client.createTask(args.title, args.dueDate.ifBlank { null }, args.notes.ifBlank { null })
+        }
+    }
+
+    object CompleteTaskTool : SimpleTool<CompleteTaskTool.Args>(
+        argsSerializer = Args.serializer(),
+        name = "complete_task",
+        description = "할일을 완료 처리한다. list_tasks로 taskId를 먼저 확인해야 한다."
+    ) {
+        var tasksClient: GoogleTasksClient? = null
+        @Serializable
+        data class Args(@property:LLMDescription("완료할 할일 ID") val taskId: String)
+        override suspend fun execute(args: Args): String {
+            val client = tasksClient ?: return "Google 계정이 연결되지 않았습니다. 설정에서 연결해 주세요."
+            return client.completeTask(args.taskId)
+        }
+    }
+
+    object DeleteTaskTool : SimpleTool<DeleteTaskTool.Args>(
+        argsSerializer = Args.serializer(),
+        name = "delete_task",
+        description = "할일을 삭제한다. list_tasks로 taskId를 먼저 확인해야 한다."
+    ) {
+        var tasksClient: GoogleTasksClient? = null
+        @Serializable
+        data class Args(@property:LLMDescription("삭제할 할일 ID") val taskId: String)
+        override suspend fun execute(args: Args): String {
+            val client = tasksClient ?: return "Google 계정이 연결되지 않았습니다. 설정에서 연결해 주세요."
+            return client.deleteTask(args.taskId)
+        }
+    }
+
+    // ── Engine 설정 ──
 
     private val executor = simpleGoogleAIExecutor(apiKey)
     private val model = LLModel(
@@ -167,10 +273,34 @@ class KoogAgentEngine(
         tool(SearchContactsTool)
         tool(MakeCallTool)
         tool(SendSmsTool)
+        tool(ListEventsTool)
+        tool(CreateEventTool)
+        tool(UpdateEventTool)
+        tool(DeleteEventTool)
+        tool(ListTasksTool)
+        tool(CreateTaskTool)
+        tool(CompleteTaskTool)
+        tool(DeleteTaskTool)
     }
 
     private fun buildSystemPrompt(): String {
-        val base = BASE_SYSTEM_PROMPT.trimIndent()
+        val now = SimpleDateFormat("yyyy-MM-dd HH:mm (E)", Locale.KOREAN).format(Date())
+        val base = """
+${BASE_SYSTEM_PROMPT.trimIndent()}
+
+현재 시각: $now
+타임존: Asia/Seoul (KST, +09:00)
+
+일정 관련 요청이 오면 캘린더 도구(list_events, create_event, update_event, delete_event)를 사용해.
+할일 관련 요청이 오면 할일 도구(list_tasks, create_task, complete_task, delete_task)를 사용해.
+
+규칙:
+- 일정 수정/삭제 전에 list_events로 eventId를 먼저 확인해
+- 할일 완료/삭제 전에 list_tasks로 taskId를 먼저 확인해
+- 날짜는 ISO 8601 형식으로 변환해 (예: 2026-03-18T15:00:00+09:00)
+- "내일", "다음 주 월요일" 같은 상대 날짜는 현재 시각 기준으로 계산해
+""".trimIndent()
+
         if (conversationHistory.isEmpty()) return base
         val history = conversationHistory.joinToString("\n") { (user, assistant) ->
             "사용자: $user\n바라: $assistant"
@@ -183,7 +313,7 @@ class KoogAgentEngine(
         systemPrompt = buildSystemPrompt(),
         llmModel = model,
         toolRegistry = buildTools(),
-        maxIterations = 10
+        maxIterations = 15
     )
 
     override suspend fun process(text: String): String {
@@ -191,12 +321,8 @@ class KoogAgentEngine(
         return try {
             val result = createAgent().run(text)
             Log.d(TAG, "Result: $result")
-
             conversationHistory.add(text to result)
-            if (conversationHistory.size > 10) {
-                conversationHistory.removeAt(0)
-            }
-
+            if (conversationHistory.size > 10) conversationHistory.removeAt(0)
             result
         } catch (e: Exception) {
             Log.e(TAG, "Agent error", e)
@@ -204,12 +330,21 @@ class KoogAgentEngine(
         }
     }
 
-    // Context 주입 (Service/Activity에서 호출)
     fun setContext(context: Context) {
         MakeCallTool.appContext = context.applicationContext
     }
 
-    // 대화 기록을 반환 (히스토리 저장용)
+    fun setGoogleClients(calendarClient: GoogleCalendarClient?, tasksClient: GoogleTasksClient?) {
+        ListEventsTool.calendarClient = calendarClient
+        CreateEventTool.calendarClient = calendarClient
+        UpdateEventTool.calendarClient = calendarClient
+        DeleteEventTool.calendarClient = calendarClient
+        ListTasksTool.tasksClient = tasksClient
+        CreateTaskTool.tasksClient = tasksClient
+        CompleteTaskTool.tasksClient = tasksClient
+        DeleteTaskTool.tasksClient = tasksClient
+    }
+
     fun getConversationTranscript(): String {
         return conversationHistory.joinToString("\n") { (user, assistant) ->
             "사용자: $user\n바라: $assistant"

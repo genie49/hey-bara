@@ -40,8 +40,22 @@ class SecurePreferences(context: Context) {
         prefs.edit().putFloat(KEY_WAKE_SENSITIVITY, value).apply()
     }
 
+    // Google 계정 이메일
+    fun getGoogleAccountEmail(): String? {
+        return prefs.getString(KEY_GOOGLE_EMAIL, null)
+    }
+
+    fun setGoogleAccountEmail(email: String) {
+        prefs.edit().putString(KEY_GOOGLE_EMAIL, email).apply()
+    }
+
+    fun clearGoogleAccount() {
+        prefs.edit().remove(KEY_GOOGLE_EMAIL).apply()
+    }
+
     companion object {
         private const val KEY_GEMINI_API = "gemini_api_key"
         private const val KEY_WAKE_SENSITIVITY = "wake_word_sensitivity"
+        private const val KEY_GOOGLE_EMAIL = "google_account_email"
     }
 }

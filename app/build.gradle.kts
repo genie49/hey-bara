@@ -68,6 +68,10 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
 
 
+    // Google Auth
+    implementation("com.google.android.gms:play-services-auth:21.3.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
+
     // tar.bz2 모델 다운로드용
     implementation("org.apache.commons:commons-compress:1.27.1")
 
