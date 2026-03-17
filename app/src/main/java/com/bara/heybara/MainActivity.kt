@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -26,13 +27,23 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Sms
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import com.bara.heybara.data.model.ModelInstaller
+import com.bara.heybara.domain.action.ActionConfirmation
+import com.bara.heybara.domain.action.ActionType
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,6 +52,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import com.bara.heybara.domain.session.SessionState
@@ -80,10 +93,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        // 설정에서 돌아왔을 때 API Key 상태 갱신
+        // 설정에서 돌아왔을 때 상태 갱신
         val hasKey = SecurePreferences(this).getGeminiApiKey() != null
         viewModel.updateApiKeyStatus(hasKey)
-        if (hasKey) startVoiceService()
+        ModelInstaller.checkInstalled(this)
+        if (hasKey && ModelInstaller.isAllInstalled(this)) startVoiceService()
     }
 
     private fun requestPermissionsAndStart() {
@@ -124,13 +138,40 @@ fun MainScreen(viewModel: MainViewModel, overrideHasApiKey: Boolean? = null) {
     val messages by viewModel.messages.collectAsState()
     val hasApiKey by viewModel.hasApiKey.collectAsState()
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
+    val sttState by ModelInstaller.sttState.collectAsState()
+    val kwsState by ModelInstaller.kwsState.collectAsState()
+
+    LaunchedEffect(Unit) {
+        ModelInstaller.checkInstalled(context)
+    }
+
     // Preview에서는 overrideHasApiKey 사용, 실제로는 ViewModel 상태
     val apiKeyAvailable = overrideHasApiKey ?: hasApiKey
+    val modelsInstalled = sttState == ModelInstaller.InstallState.INSTALLED &&
+            kwsState == ModelInstaller.InstallState.INSTALLED
+    val setupComplete = apiKeyAvailable && modelsInstalled
+
+    // 액션 확인 모달
+    val confirmationRequest by ActionConfirmation.pendingRequest.collectAsState()
+    confirmationRequest?.let { request ->
+        ActionConfirmationDialog(
+            description = request.description,
+            type = request.type,
+            onConfirm = { ActionConfirmation.confirm() },
+            onDeny = { ActionConfirmation.deny() }
+        )
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(BaraColors.Background)
+            .imePadding()
+            .clickable(
+                indication = null,
+                interactionSource = remember { MutableInteractionSource() }
+            ) { focusManager.clearFocus() }
     ) {
         // 헤더
         Row(
@@ -154,6 +195,9 @@ fun MainScreen(viewModel: MainViewModel, overrideHasApiKey: Boolean? = null) {
                 StatusBadge(state)
             }
             Row {
+                IconButton(onClick = { viewModel.clearChat() }) {
+                    Icon(Icons.Filled.Add, contentDescription = "새 채팅", tint = BaraColors.TextSecondary)
+                }
                 IconButton(onClick = {
                     context.startActivity(Intent(context, HistoryActivity::class.java))
                 }) {
@@ -168,17 +212,24 @@ fun MainScreen(viewModel: MainViewModel, overrideHasApiKey: Boolean? = null) {
         }
 
         // 채팅 영역
-        if (!apiKeyAvailable) {
-            // API Key 미설정 안내
+        if (!setupComplete) {
+            // 설정 미완료 안내
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth(),
                 contentAlignment = Alignment.Center
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("API Key가 설정되지 않았습니다", color = BaraColors.TextSecondary)
-                    Spacer(modifier = Modifier.height(8.dp))
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (!apiKeyAvailable) {
+                        Text("API Key가 설정되지 않았습니다", color = BaraColors.TextSecondary)
+                    }
+                    if (!modelsInstalled) {
+                        Text("음성 모델이 설치되지 않았습니다", color = BaraColors.TextSecondary)
+                    }
                     TextButton(onClick = {
                         context.startActivity(Intent(context, SettingsActivity::class.java))
                     }) {
@@ -223,10 +274,15 @@ fun MainScreen(viewModel: MainViewModel, overrideHasApiKey: Boolean? = null) {
             TextField(
                 value = inputText,
                 onValueChange = { inputText = it },
-                placeholder = { Text("메시지를 입력하세요...") },
+                placeholder = { Text("메시지를 입력하세요...", color = BaraColors.TextTertiary) },
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(22.dp),
                 colors = TextFieldDefaults.colors(
+                    focusedContainerColor = BaraColors.CardSurface,
+                    unfocusedContainerColor = BaraColors.CardSurface,
+                    focusedTextColor = BaraColors.TextPrimary,
+                    unfocusedTextColor = BaraColors.TextPrimary,
+                    cursorColor = BaraColors.Coral,
                     focusedIndicatorColor = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent
                 )
@@ -288,6 +344,97 @@ fun MainScreenPreview() {
 }
 
 @Composable
+fun ActionConfirmationDialog(
+    description: String,
+    type: ActionType,
+    onConfirm: () -> Unit,
+    onDeny: () -> Unit
+) {
+    var remainingSeconds by remember { mutableIntStateOf(10) }
+
+    // 10초 카운트다운 → 자동 실행
+    LaunchedEffect(Unit) {
+        while (remainingSeconds > 0) {
+            delay(1000)
+            remainingSeconds--
+        }
+        onConfirm()
+    }
+
+    Dialog(
+        onDismissRequest = { onDeny() },
+        properties = DialogProperties(dismissOnBackPress = true, dismissOnClickOutside = false)
+    ) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = BaraColors.Background,
+            shadowElevation = 8.dp
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // 아이콘
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .background(
+                            if (type == ActionType.CALL) BaraColors.GreenBadgeBg else BaraColors.IndigoBadgeBg,
+                            CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (type == ActionType.CALL) Icons.Filled.Call else Icons.Filled.Sms,
+                        contentDescription = null,
+                        tint = if (type == ActionType.CALL) BaraColors.Green else BaraColors.Indigo,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+
+                // 설명
+                Text(
+                    description,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = BaraColors.TextPrimary
+                )
+
+                // 카운트다운
+                Text(
+                    "${remainingSeconds}초 후 자동 실행",
+                    fontSize = 13.sp,
+                    color = BaraColors.TextTertiary
+                )
+
+                // 버튼
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onDeny,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("취소")
+                    }
+                    Button(
+                        onClick = onConfirm,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = BaraColors.Coral)
+                    ) {
+                        Text("실행", color = BaraColors.Background)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun ChatBubble(message: ChatMessage) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -299,9 +446,7 @@ fun ChatBubble(message: ChatMessage) {
             Image(
                 painter = painterResource(R.drawable.bara_avatar),
                 contentDescription = "바라",
-                modifier = Modifier
-                    .size(28.dp)
-                    .clip(CircleShape)
+                modifier = Modifier.size(28.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
         }

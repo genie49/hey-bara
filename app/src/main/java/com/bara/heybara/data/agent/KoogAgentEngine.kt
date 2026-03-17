@@ -1,5 +1,9 @@
 package com.bara.heybara.data.agent
 
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.telephony.SmsManager
 import android.util.Log
 import ai.koog.agents.core.agent.AIAgent
 import ai.koog.agents.core.tools.ToolRegistry
@@ -9,11 +13,10 @@ import ai.koog.prompt.executor.llms.all.simpleGoogleAIExecutor
 import ai.koog.prompt.llm.LLMCapability
 import ai.koog.prompt.llm.LLModel
 import ai.koog.prompt.llm.LLMProvider
+import com.bara.heybara.domain.action.ActionConfirmation
+import com.bara.heybara.domain.action.ActionType
 import com.bara.heybara.domain.action.ContactResolver
-import com.bara.heybara.domain.agent.AgentAction
 import com.bara.heybara.domain.agent.AgentEngine
-import com.bara.heybara.domain.agent.AgentResponse
-import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
 
 class KoogAgentEngine(
@@ -31,17 +34,14 @@ class KoogAgentEngine(
 
 전화를 걸거나 문자를 보내라는 요청이 오면:
 1. 먼저 search_contacts로 연락처를 검색해
-2. 검색 결과가 1개면 사용자에게 확인을 요청해 (예: "엄마한테 전화를 걸까요?")
-3. 사용자가 확인하면 make_call 또는 send_sms를 호출해
-4. 사용자가 거부하면 "알겠어요, 취소할게요"라고 답해
-5. 검색 결과가 여러 개면 사용자에게 누구인지 물어봐
-6. 검색 결과가 없으면 연락처를 찾을 수 없다고 말해
+2. 검색 결과가 1개면 바로 make_call 또는 send_sms를 호출해 (시스템이 사용자 확인을 처리함)
+3. 검색 결과가 여러 개면 사용자에게 누구인지 물어봐
+4. 검색 결과가 없으면 연락처를 찾을 수 없다고 말해
 
 중요 규칙:
-- 전화나 문자를 실행하기 전에 반드시 사용자 확인을 받아야 해. 확인 없이 바로 실행하지 마.
-- 사용자가 "응", "네", "그래", "해줘" 등으로 확인하면 즉시 해당 도구를 호출해. 같은 확인을 다시 묻지 마.
-- 이전 대화에서 이미 확인받은 작업은 바로 실행해.
-- make_call과 send_sms 호출 시 반드시 전화번호를 사용해.
+- make_call과 send_sms 호출 시 반드시 전화번호를 사용해
+- 도구가 "사용자가 취소했습니다"를 반환하면 "알겠어요, 취소할게요"라고 답해
+- 도구가 성공을 반환하면 완료되었다고 알려줘
 """
     }
 
@@ -52,13 +52,12 @@ class KoogAgentEngine(
     // 대화 기록 직접 관리
     private val conversationHistory = mutableListOf<Pair<String, String>>()
 
-    // 연락처 검색 Tool (contactResolver를 companion의 static 참조로 전달)
+    // 연락처 검색 Tool
     object SearchContactsTool : SimpleTool<SearchContactsTool.Args>(
         argsSerializer = Args.serializer(),
         name = "search_contacts",
         description = "연락처에서 이름으로 검색한다. 전화나 문자를 보내기 전에 반드시 먼저 호출해야 한다."
     ) {
-        // 외부에서 주입
         var resolver: ContactResolver? = null
 
         @Serializable
@@ -78,12 +77,14 @@ class KoogAgentEngine(
         }
     }
 
-    // 전화 걸기 Tool
+    // 전화 걸기 Tool — 확인 후 실제 실행
     object MakeCallTool : SimpleTool<MakeCallTool.Args>(
         argsSerializer = Args.serializer(),
         name = "make_call",
         description = "전화번호로 전화를 건다. search_contacts로 번호를 먼저 확인한 후 호출해야 한다."
     ) {
+        var appContext: Context? = null
+
         @Serializable
         data class Args(
             @property:LLMDescription("전화할 사람 이름")
@@ -93,12 +94,28 @@ class KoogAgentEngine(
         )
 
         override suspend fun execute(args: Args): String {
-            Log.d("AgentTool", "전화 걸기: contact=${args.contact}, number=${args.phoneNumber}")
-            return "${args.contact}(${args.phoneNumber})한테 전화를 겁니다."
+            val confirmed = ActionConfirmation.requestConfirmation(
+                "${args.contact}님에게 전화를 겁니다",
+                ActionType.CALL
+            )
+            if (!confirmed) return "사용자가 취소했습니다."
+
+            return try {
+                val intent = Intent(Intent.ACTION_CALL).apply {
+                    data = Uri.parse("tel:${args.phoneNumber}")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                appContext?.startActivity(intent)
+                Log.d("AgentTool", "전화 걸기 실행: ${args.contact}(${args.phoneNumber})")
+                "${args.contact}(${args.phoneNumber})에게 전화를 걸었습니다."
+            } catch (e: Exception) {
+                Log.e("AgentTool", "전화 걸기 실패", e)
+                "전화 걸기에 실패했습니다: ${e.message}"
+            }
         }
     }
 
-    // SMS 보내기 Tool
+    // SMS 보내기 Tool — 확인 후 실제 실행
     object SendSmsTool : SimpleTool<SendSmsTool.Args>(
         argsSerializer = Args.serializer(),
         name = "send_sms",
@@ -115,8 +132,22 @@ class KoogAgentEngine(
         )
 
         override suspend fun execute(args: Args): String {
-            Log.d("AgentTool", "SMS 전송: contact=${args.contact}, number=${args.phoneNumber}, message=${args.message}")
-            return "${args.contact}(${args.phoneNumber})한테 '${args.message}'라고 문자를 보냅니다."
+            val confirmed = ActionConfirmation.requestConfirmation(
+                "${args.contact}님에게 '${args.message}'라고 문자를 보냅니다",
+                ActionType.SMS
+            )
+            if (!confirmed) return "사용자가 취소했습니다."
+
+            return try {
+                @Suppress("DEPRECATION")
+                val smsManager = SmsManager.getDefault()
+                smsManager.sendTextMessage(args.phoneNumber, null, args.message, null, null)
+                Log.d("AgentTool", "SMS 전송 실행: ${args.contact}(${args.phoneNumber}), ${args.message}")
+                "${args.contact}(${args.phoneNumber})에게 '${args.message}'라고 문자를 보냈습니다."
+            } catch (e: Exception) {
+                Log.e("AgentTool", "SMS 전송 실패", e)
+                "문자 보내기에 실패했습니다: ${e.message}"
+            }
         }
     }
 
@@ -155,7 +186,7 @@ class KoogAgentEngine(
         maxIterations = 10
     )
 
-    override suspend fun process(text: String): AgentResponse {
+    override suspend fun process(text: String): String {
         Log.d(TAG, "Processing: $text")
         return try {
             val result = createAgent().run(text)
@@ -166,49 +197,19 @@ class KoogAgentEngine(
                 conversationHistory.removeAt(0)
             }
 
-            // Tool 호출 결과에서 AgentAction 파싱
-            parseResponse(text, result)
+            result
         } catch (e: Exception) {
             Log.e(TAG, "Agent error", e)
             throw e
         }
     }
 
-    private fun parseResponse(input: String, result: String): AgentResponse {
-        // make_call이 호출된 경우
-        val callPattern = "(.+?)\\((.+?)\\)한테 전화를 겁니다".toRegex()
-        callPattern.find(result)?.let { match ->
-            val contact = match.groupValues[1]
-            val number = match.groupValues[2]
-            return AgentResponse(
-                text = "${contact}한테 전화를 걸까요?",
-                action = AgentAction.Call(contact, number),
-                requiresConfirmation = true
-            )
-        }
-
-        // send_sms가 호출된 경우
-        val smsPattern = "(.+?)\\((.+?)\\)한테 '(.+?)'라고 문자를 보냅니다".toRegex()
-        smsPattern.find(result)?.let { match ->
-            val contact = match.groupValues[1]
-            val number = match.groupValues[2]
-            val message = match.groupValues[3]
-            return AgentResponse(
-                text = "${contact}한테 '${message}'라고 문자를 보낼까요?",
-                action = AgentAction.SendSms(contact, number, message),
-                requiresConfirmation = true
-            )
-        }
-
-        // Tool 호출 없는 일반 응답
-        return AgentResponse(
-            text = result,
-            action = null,
-            requiresConfirmation = false
-        )
+    // Context 주입 (Service/Activity에서 호출)
+    fun setContext(context: Context) {
+        MakeCallTool.appContext = context.applicationContext
     }
 
-    // 대화 기록을 JSON으로 반환 (히스토리 저장용)
+    // 대화 기록을 반환 (히스토리 저장용)
     fun getConversationTranscript(): String {
         return conversationHistory.joinToString("\n") { (user, assistant) ->
             "사용자: $user\n바라: $assistant"

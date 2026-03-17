@@ -4,16 +4,11 @@ import android.content.Context
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.bara.heybara.data.action.ActionExecutorImpl
-import com.bara.heybara.data.action.CallExecutor
 import com.bara.heybara.data.action.DeviceContactResolver
-import com.bara.heybara.data.action.SmsExecutor
 import com.bara.heybara.data.agent.KoogAgentEngine
+import com.bara.heybara.data.settings.SecurePreferences
 import com.bara.heybara.data.history.AppDatabase
 import com.bara.heybara.data.history.RoomConversationRepository
-import com.bara.heybara.data.settings.SecurePreferences
-import com.bara.heybara.domain.action.ActionExecutor
-import com.bara.heybara.domain.agent.AgentEngine
 import com.bara.heybara.domain.history.Conversation
 import com.bara.heybara.domain.history.ConversationRepository
 import com.bara.heybara.domain.session.SessionState
@@ -23,6 +18,7 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.UUID
 
 data class ChatMessage(
     val text: String,
@@ -44,8 +40,9 @@ class MainViewModel : ViewModel() {
     val hasApiKey: StateFlow<Boolean> = _hasApiKey
 
     private var agentEngine: KoogAgentEngine? = null
-    private var actionExecutor: ActionExecutor? = null
-    private var conversationRepository: ConversationRepository? = null
+    private var conversationRepository: RoomConversationRepository? = null
+    private var appContext: Context? = null
+    private var currentSessionId: String = UUID.randomUUID().toString()
 
     fun updateState(state: SessionState) {
         _sessionState.value = state
@@ -53,6 +50,13 @@ class MainViewModel : ViewModel() {
 
     fun addMessage(message: ChatMessage) {
         _messages.value = _messages.value + message
+    }
+
+    fun clearChat() {
+        _messages.value = emptyList()
+        agentEngine?.release()
+        agentEngine = null
+        currentSessionId = UUID.randomUUID().toString()
     }
 
     fun updatePartialText(text: String) {
@@ -65,10 +69,12 @@ class MainViewModel : ViewModel() {
 
     fun initAgent(context: Context) {
         if (agentEngine != null) return
+        appContext = context.applicationContext
         val apiKey = SecurePreferences(context).getGeminiApiKey() ?: return
         val contactResolver = DeviceContactResolver(context)
-        agentEngine = KoogAgentEngine(apiKey, contactResolver)
-        actionExecutor = ActionExecutorImpl(CallExecutor(context), SmsExecutor())
+        agentEngine = KoogAgentEngine(apiKey, contactResolver).also {
+            it.setContext(context)
+        }
         conversationRepository = RoomConversationRepository(
             AppDatabase.getInstance(context).conversationDao()
         )
@@ -84,19 +90,9 @@ class MainViewModel : ViewModel() {
 
         viewModelScope.launch {
             try {
-                val response = agentEngine?.process(text)
-                if (response != null) {
-                    addMessage(ChatMessage(response.text, isUser = false, timestamp = now))
-
-                    // 액션이 있으면 실행
-                    response.action?.let { action ->
-                        if (response.requiresConfirmation) {
-                            // TODO: UI에서 확인 버튼 표시
-                            // 지금은 바로 실행
-                            val success = actionExecutor?.execute(action) ?: false
-                            Log.d("MainViewModel", "액션 실행: $action, 성공=$success")
-                        }
-                    }
+                val result = agentEngine?.process(text)
+                if (result != null) {
+                    addMessage(ChatMessage(result, isUser = false, timestamp = now))
                 } else {
                     addMessage(ChatMessage("AgentEngine이 초기화되지 않았습니다", isUser = false, timestamp = now))
                 }
@@ -104,53 +100,41 @@ class MainViewModel : ViewModel() {
                 addMessage(ChatMessage("오류: ${e.message}", isUser = false, timestamp = now))
             } finally {
                 updateState(SessionState.IDLE)
-                // 대화 히스토리 저장 (백그라운드)
                 saveConversationHistory()
             }
         }
     }
 
-    // LLM 요약 후 Room DB에 저장
+    // LLM 요약 후 Room DB에 upsert (sessionId 기준으로 같은 세션은 덮어씀)
     private fun saveConversationHistory() {
         val engine = agentEngine ?: return
         val repo = conversationRepository ?: return
         val transcript = engine.getConversationTranscript()
         if (transcript.isBlank()) return
 
+        val sessionId = currentSessionId
         viewModelScope.launch {
             try {
-                // LLM에게 대화 요약 요청
-                val summaryResponse = engine.process(
-                    "이전 대화를 한 줄로 요약하고 카테고리를 분류해줘. " +
-                    "형식: 요약|카테고리 (카테고리는 call, sms, chat 중 하나)"
+                // 별도 에이전트로 요약 (메인 대화 히스토리에 영향 없음)
+                val summaryAgent = KoogAgentEngine(
+                    SecurePreferences(appContext!!).getGeminiApiKey()!!
                 )
-                val parts = summaryResponse.text.split("|").map { it.trim() }
+                val summaryResponse = summaryAgent.process(
+                    "다음 대화를 한 줄로 요약하고 카테고리를 분류해줘. " +
+                    "형식: 요약|카테고리 (카테고리는 call, sms, chat 중 하나)\n\n$transcript"
+                )
+                summaryAgent.release()
+
+                val parts = summaryResponse.split("|").map { it.trim() }
                 val topic = parts.getOrElse(0) { "대화" }
                 val category = parts.getOrElse(1) { "chat" }.lowercase()
                     .let { if (it in listOf("call", "sms", "chat")) it else "chat" }
 
-                repo.save(
-                    Conversation(
-                        topic = topic,
-                        category = category,
-                        inputMode = "text",
-                        timestamp = System.currentTimeMillis(),
-                        transcript = transcript
-                    )
-                )
-                Log.d("MainViewModel", "대화 히스토리 저장: $topic ($category)")
+                repo.upsertBySession(sessionId, topic, category, "text", transcript)
+                Log.d("MainViewModel", "대화 히스토리 저장: $topic ($category) [session=$sessionId]")
             } catch (e: Exception) {
-                // 요약 실패 시 기본값으로 저장
                 Log.e("MainViewModel", "히스토리 요약 실패, 기본값 저장", e)
-                repo.save(
-                    Conversation(
-                        topic = "대화",
-                        category = "chat",
-                        inputMode = "text",
-                        timestamp = System.currentTimeMillis(),
-                        transcript = transcript
-                    )
-                )
+                repo.upsertBySession(sessionId, "대화", "chat", "text", transcript)
             }
         }
     }

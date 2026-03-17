@@ -8,15 +8,11 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.bara.heybara.BaraApp
-import com.bara.heybara.BuildConfig
 import com.bara.heybara.R
-import com.bara.heybara.data.action.ActionExecutorImpl
-import com.bara.heybara.data.action.CallExecutor
 import com.bara.heybara.data.action.DeviceContactResolver
-import com.bara.heybara.data.action.SmsExecutor
+import com.bara.heybara.data.model.ModelInstaller
 import com.bara.heybara.data.agent.KoogAgentEngine
 import com.bara.heybara.data.settings.SecurePreferences
-import com.bara.heybara.domain.action.ActionExecutor
 import com.bara.heybara.data.voice.AndroidTtsEngine
 import com.bara.heybara.data.voice.SoundPoolBeepPlayer
 import com.bara.heybara.data.voice.SherpaSpeechRecognizer
@@ -24,9 +20,8 @@ import com.bara.heybara.domain.agent.AgentEngine
 import com.bara.heybara.domain.session.SessionState
 import com.bara.heybara.domain.session.VoiceSession
 import com.bara.heybara.domain.voice.WakeWordDetector
-import com.bara.heybara.data.voice.PorcupineWakeWordDetector
+import com.bara.heybara.data.voice.SherpaKwsWakeWordDetector
 import com.bara.heybara.ui.OverlayBubbleView
-import com.bara.heybara.util.AssetCopier
 import kotlinx.coroutines.*
 import java.io.File
 
@@ -40,20 +35,18 @@ class VoiceAssistantService : Service() {
     private var session: VoiceSession? = null
     private var overlay: OverlayBubbleView? = null
     private var agentEngine: AgentEngine? = null
-    private var actionExecutor: ActionExecutor? = null
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     override fun onCreate() {
         super.onCreate()
 
-        // ActionExecutor 초기화
-        actionExecutor = ActionExecutorImpl(CallExecutor(this), SmsExecutor())
-
         // API Key + ContactResolver로 AgentEngine 초기화
         val apiKey = SecurePreferences(this).getGeminiApiKey()
         if (apiKey != null) {
             val contactResolver = DeviceContactResolver(this)
-            agentEngine = KoogAgentEngine(apiKey, contactResolver)
+            val engine = KoogAgentEngine(apiKey, contactResolver)
+            engine.setContext(this)
+            agentEngine = engine
             Log.d(TAG, "KoogAgentEngine 초기화 완료 (연락처 검색 활성화)")
         } else {
             Log.w(TAG, "API Key 없음, AgentEngine 미초기화")
@@ -68,16 +61,14 @@ class VoiceAssistantService : Service() {
     }
 
     private fun startWakeWordDetection() {
-        // assets에서 내부 저장소로 모델 복사
-        val wakeWordDir = File(filesDir, "models/wakeword")
-        AssetCopier.copyIfNeeded(this, "models/wakeword/hey-bara.ppn", wakeWordDir)
-        AssetCopier.copyIfNeeded(this, "models/wakeword/porcupine_params_ko.pv", wakeWordDir)
+        val kwsDir = File(filesDir, "models/kws")
+        if (!ModelInstaller.isKwsInstalled(this)) {
+            Log.w(TAG, "KWS 모델 미설치, 웨이크워드 감지 건너뜀")
+            return
+        }
 
-        val keywordPath = File(wakeWordDir, "hey-bara.ppn").absolutePath
-        val modelPath = File(wakeWordDir, "porcupine_params_ko.pv").absolutePath
-        val accessKey = BuildConfig.PORCUPINE_ACCESS_KEY
-
-        wakeWordDetector = PorcupineWakeWordDetector(this, accessKey, keywordPath, modelPath)
+        val sensitivity = SecurePreferences(this).getWakeWordSensitivity()
+        wakeWordDetector = SherpaKwsWakeWordDetector(this, kwsDir.absolutePath, sensitivity)
         wakeWordDetector?.start {
             onWakeWordDetected()
         }
@@ -85,6 +76,14 @@ class VoiceAssistantService : Service() {
 
     private fun onWakeWordDetected() {
         wakeWordDetector?.stop()
+
+        // STT 모델 미설치 시 무시
+        if (!ModelInstaller.isSttInstalled(this)) {
+            updateNotification("음성 모델 미설치")
+            startWakeWordDetection()
+            return
+        }
+
         updateNotification("듣고 있어요...")
 
         // 앱이 포그라운드가 아니면 오버레이 표시
@@ -120,12 +119,6 @@ class VoiceAssistantService : Service() {
                 }
             }
             onSpeechResult = { text -> this@VoiceAssistantService.onSpeechResult(text) }
-            onActionExecute = { action ->
-                serviceScope.launch {
-                    val success = actionExecutor?.execute(action) ?: false
-                    Log.d(TAG, "액션 실행: $action, 성공=$success")
-                }
-            }
         }
         session?.onWakeWordDetected()
     }
@@ -139,9 +132,7 @@ class VoiceAssistantService : Service() {
     }
 
     private fun getModelDir(): String {
-        val sttDir = File(filesDir, "models/stt")
-        AssetCopier.copyDirIfNeeded(this, "models/stt", sttDir)
-        return sttDir.absolutePath
+        return File(filesDir, "models/stt").absolutePath
     }
 
     private fun buildNotification(text: String): Notification {

@@ -1,15 +1,8 @@
-import java.util.Properties
-
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
-}
-
-val localProperties = Properties().apply {
-    val file = rootProject.file("local.properties")
-    if (file.exists()) load(file.inputStream())
 }
 
 android {
@@ -29,11 +22,6 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        buildConfigField(
-            "String",
-            "PORCUPINE_ACCESS_KEY",
-            "\"${localProperties.getProperty("PORCUPINE_ACCESS_KEY", "")}\""
-        )
     }
 
     buildTypes {
@@ -79,8 +67,9 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.kotlinx.coroutines.android)
 
-    // Porcupine wake word
-    implementation(libs.porcupine.android)
+
+    // tar.bz2 모델 다운로드용
+    implementation("org.apache.commons:commons-compress:1.27.1")
 
     // Sherpa-ONNX STT (local AAR)
     implementation(files("libs/sherpa-onnx-1.12.29.aar"))

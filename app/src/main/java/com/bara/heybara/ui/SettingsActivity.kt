@@ -14,6 +14,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -21,9 +23,11 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.bara.heybara.data.model.ModelInstaller
 import com.bara.heybara.data.settings.SecurePreferences
 import com.bara.heybara.ui.theme.BaraColors
 import com.bara.heybara.ui.theme.HeyBaraTheme
+import kotlinx.coroutines.launch
 
 class SettingsActivity : ComponentActivity() {
 
@@ -48,6 +52,17 @@ fun SettingsScreen(securePrefs: SecurePreferences, onBack: () -> Unit) {
     var apiKeyInput by remember { mutableStateOf("") }
     var savedMessage by remember { mutableStateOf<String?>(null) }
     var hasSavedKey by remember { mutableStateOf(existingKey != null) }
+
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val sttState by ModelInstaller.sttState.collectAsState()
+    val sttProgress by ModelInstaller.sttProgress.collectAsState()
+    val kwsState by ModelInstaller.kwsState.collectAsState()
+    val kwsProgress by ModelInstaller.kwsProgress.collectAsState()
+
+    LaunchedEffect(Unit) {
+        ModelInstaller.checkInstalled(context)
+    }
 
     Column(
         modifier = Modifier
@@ -143,6 +158,34 @@ fun SettingsScreen(securePrefs: SecurePreferences, onBack: () -> Unit) {
                 }
             }
 
+            // 음성 모델 섹션
+            SettingsSection(label = "음성 모델") {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // STT 모델
+                    ModelInstallRow(
+                        title = "음성 인식 (Korean STT)",
+                        subtitle = "~300MB · 한국어 음성 인식",
+                        state = sttState,
+                        progress = sttProgress,
+                        onInstall = { scope.launch { ModelInstaller.installStt(context) } }
+                    )
+
+                    HorizontalDivider(color = BaraColors.Background, thickness = 1.dp)
+
+                    // KWS 모델
+                    ModelInstallRow(
+                        title = "웨이크워드 (Hey Bara)",
+                        subtitle = "~5MB · 음성 호출 감지",
+                        state = kwsState,
+                        progress = kwsProgress,
+                        onInstall = { scope.launch { ModelInstaller.installKws(context) } }
+                    )
+                }
+            }
+
             // AI 엔진 섹션 (Phase 3+)
             SettingsSection(label = "AI 엔진") {
                 Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
@@ -161,6 +204,12 @@ fun SettingsScreen(securePrefs: SecurePreferences, onBack: () -> Unit) {
             }
 
             // 웨이크워드 감도 섹션
+            var sensitivity by remember { mutableFloatStateOf(securePrefs.getWakeWordSensitivity()) }
+            val sensitivityLabel = when {
+                sensitivity < 0.25f -> "낮음"
+                sensitivity < 0.75f -> "보통"
+                else -> "높음"
+            }
             SettingsSection(label = "웨이크워드 감도") {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(
@@ -170,19 +219,78 @@ fun SettingsScreen(securePrefs: SecurePreferences, onBack: () -> Unit) {
                     ) {
                         Text("\"헤이 바라\" 감도", color = BaraColors.TextPrimary, fontSize = 14.sp)
                         Spacer(modifier = Modifier.weight(1f))
-                        Text("보통", color = BaraColors.Coral, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        Text(sensitivityLabel, color = BaraColors.Coral, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                     }
-                    // TODO: 슬라이더 연결
                     Slider(
-                        value = 0.5f,
-                        onValueChange = {},
+                        value = sensitivity,
+                        onValueChange = {
+                            sensitivity = it
+                            securePrefs.setWakeWordSensitivity(it)
+                        },
                         colors = SliderDefaults.colors(
                             thumbColor = BaraColors.Coral,
                             activeTrackColor = BaraColors.Coral
                         )
                     )
+                    Text(
+                        "감도를 변경하면 다음 웨이크워드 감지부터 적용됩니다",
+                        color = BaraColors.TextTertiary,
+                        fontSize = 11.sp
+                    )
                 }
             }
+        }
+    }
+}
+
+// 모델 설치 행 컴포넌트
+@Composable
+fun ModelInstallRow(
+    title: String,
+    subtitle: String,
+    state: ModelInstaller.InstallState,
+    progress: Int,
+    onInstall: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, color = BaraColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                Text(subtitle, color = BaraColors.TextTertiary, fontSize = 12.sp)
+            }
+            when (state) {
+                ModelInstaller.InstallState.INSTALLED -> {
+                    Text("설치 완료", color = BaraColors.Green, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                }
+                ModelInstaller.InstallState.NOT_INSTALLED,
+                ModelInstaller.InstallState.ERROR -> {
+                    Button(
+                        onClick = onInstall,
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = BaraColors.Coral),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Text(if (state == ModelInstaller.InstallState.ERROR) "재시도" else "설치", fontSize = 13.sp)
+                    }
+                }
+                ModelInstaller.InstallState.DOWNLOADING -> {
+                    Text("${progress}%", color = BaraColors.Indigo, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
+        if (state == ModelInstaller.InstallState.DOWNLOADING) {
+            LinearProgressIndicator(
+                progress = { progress / 100f },
+                modifier = Modifier.fillMaxWidth(),
+                color = BaraColors.Coral,
+                trackColor = BaraColors.CardSurface,
+            )
+        }
+        if (state == ModelInstaller.InstallState.ERROR) {
+            Text("다운로드에 실패했습니다. 네트워크를 확인해 주세요.", color = BaraColors.Coral, fontSize = 12.sp)
         }
     }
 }
