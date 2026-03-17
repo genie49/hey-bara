@@ -72,6 +72,9 @@ dependencies {
     implementation("com.google.android.gms:play-services-auth:21.3.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
 
+    // ONNX Runtime Java API (네이티브는 sherpa-onnx AAR에 포함)
+    compileOnly("com.microsoft.onnxruntime:onnxruntime-android:1.21.0")
+
     // tar.bz2 모델 다운로드용
     implementation("org.apache.commons:commons-compress:1.27.1")
 

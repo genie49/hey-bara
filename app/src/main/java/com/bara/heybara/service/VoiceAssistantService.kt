@@ -100,7 +100,13 @@ class VoiceAssistantService : Service() {
         }
 
         val recognizer = SherpaSpeechRecognizer(getModelDir())
-        val tts = AndroidTtsEngine(this)
+        val tts = if (ModelInstaller.isTtsInstalled(this)) {
+            com.bara.heybara.data.tts.SupertonicTtsEngine(
+                java.io.File(filesDir, "models/tts").absolutePath
+            ).also { it.loadModels() }
+        } else {
+            AndroidTtsEngine(this)
+        }
         val beep = SoundPoolBeepPlayer(this)
 
         session = VoiceSession(recognizer, tts, beep, agentEngine).apply {
