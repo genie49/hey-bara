@@ -72,7 +72,7 @@ class GoogleCalendarClient(private val context: Context) {
             try {
                 val end = endDateTime ?: run {
                     val start = java.time.OffsetDateTime.parse(startDateTime)
-                    start.plusHours(1).toString()
+                    start.plusHours(1).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssXXX"))
                 }
 
                 val body = buildJsonObject {
