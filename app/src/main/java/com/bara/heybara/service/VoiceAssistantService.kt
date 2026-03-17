@@ -9,13 +9,9 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.bara.heybara.BaraApp
 import com.bara.heybara.R
-import com.bara.heybara.data.action.ActionExecutorImpl
-import com.bara.heybara.data.action.CallExecutor
 import com.bara.heybara.data.action.DeviceContactResolver
-import com.bara.heybara.data.action.SmsExecutor
 import com.bara.heybara.data.agent.KoogAgentEngine
 import com.bara.heybara.data.settings.SecurePreferences
-import com.bara.heybara.domain.action.ActionExecutor
 import com.bara.heybara.data.voice.AndroidTtsEngine
 import com.bara.heybara.data.voice.SoundPoolBeepPlayer
 import com.bara.heybara.data.voice.SherpaSpeechRecognizer
@@ -39,20 +35,18 @@ class VoiceAssistantService : Service() {
     private var session: VoiceSession? = null
     private var overlay: OverlayBubbleView? = null
     private var agentEngine: AgentEngine? = null
-    private var actionExecutor: ActionExecutor? = null
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     override fun onCreate() {
         super.onCreate()
 
-        // ActionExecutor 초기화
-        actionExecutor = ActionExecutorImpl(CallExecutor(this), SmsExecutor())
-
         // API Key + ContactResolver로 AgentEngine 초기화
         val apiKey = SecurePreferences(this).getGeminiApiKey()
         if (apiKey != null) {
             val contactResolver = DeviceContactResolver(this)
-            agentEngine = KoogAgentEngine(apiKey, contactResolver)
+            val engine = KoogAgentEngine(apiKey, contactResolver)
+            engine.setContext(this)
+            agentEngine = engine
             Log.d(TAG, "KoogAgentEngine 초기화 완료 (연락처 검색 활성화)")
         } else {
             Log.w(TAG, "API Key 없음, AgentEngine 미초기화")
@@ -114,12 +108,6 @@ class VoiceAssistantService : Service() {
                 }
             }
             onSpeechResult = { text -> this@VoiceAssistantService.onSpeechResult(text) }
-            onActionExecute = { action ->
-                serviceScope.launch {
-                    val success = actionExecutor?.execute(action) ?: false
-                    Log.d(TAG, "액션 실행: $action, 성공=$success")
-                }
-            }
         }
         session?.onWakeWordDetected()
     }

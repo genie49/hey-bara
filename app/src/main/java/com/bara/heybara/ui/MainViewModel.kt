@@ -4,16 +4,11 @@ import android.content.Context
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.bara.heybara.data.action.ActionExecutorImpl
-import com.bara.heybara.data.action.CallExecutor
 import com.bara.heybara.data.action.DeviceContactResolver
-import com.bara.heybara.data.action.SmsExecutor
 import com.bara.heybara.data.agent.KoogAgentEngine
 import com.bara.heybara.data.history.AppDatabase
 import com.bara.heybara.data.history.RoomConversationRepository
 import com.bara.heybara.data.settings.SecurePreferences
-import com.bara.heybara.domain.action.ActionExecutor
-import com.bara.heybara.domain.agent.AgentEngine
 import com.bara.heybara.domain.history.Conversation
 import com.bara.heybara.domain.history.ConversationRepository
 import com.bara.heybara.domain.session.SessionState
@@ -44,7 +39,6 @@ class MainViewModel : ViewModel() {
     val hasApiKey: StateFlow<Boolean> = _hasApiKey
 
     private var agentEngine: KoogAgentEngine? = null
-    private var actionExecutor: ActionExecutor? = null
     private var conversationRepository: ConversationRepository? = null
 
     fun updateState(state: SessionState) {
@@ -67,8 +61,9 @@ class MainViewModel : ViewModel() {
         if (agentEngine != null) return
         val apiKey = SecurePreferences(context).getGeminiApiKey() ?: return
         val contactResolver = DeviceContactResolver(context)
-        agentEngine = KoogAgentEngine(apiKey, contactResolver)
-        actionExecutor = ActionExecutorImpl(CallExecutor(context), SmsExecutor())
+        agentEngine = KoogAgentEngine(apiKey, contactResolver).also {
+            it.setContext(context)
+        }
         conversationRepository = RoomConversationRepository(
             AppDatabase.getInstance(context).conversationDao()
         )
@@ -84,19 +79,9 @@ class MainViewModel : ViewModel() {
 
         viewModelScope.launch {
             try {
-                val response = agentEngine?.process(text)
-                if (response != null) {
-                    addMessage(ChatMessage(response.text, isUser = false, timestamp = now))
-
-                    // 액션이 있으면 실행
-                    response.action?.let { action ->
-                        if (response.requiresConfirmation) {
-                            // TODO: UI에서 확인 버튼 표시
-                            // 지금은 바로 실행
-                            val success = actionExecutor?.execute(action) ?: false
-                            Log.d("MainViewModel", "액션 실행: $action, 성공=$success")
-                        }
-                    }
+                val result = agentEngine?.process(text)
+                if (result != null) {
+                    addMessage(ChatMessage(result, isUser = false, timestamp = now))
                 } else {
                     addMessage(ChatMessage("AgentEngine이 초기화되지 않았습니다", isUser = false, timestamp = now))
                 }
@@ -104,7 +89,6 @@ class MainViewModel : ViewModel() {
                 addMessage(ChatMessage("오류: ${e.message}", isUser = false, timestamp = now))
             } finally {
                 updateState(SessionState.IDLE)
-                // 대화 히스토리 저장 (백그라운드)
                 saveConversationHistory()
             }
         }
@@ -119,12 +103,11 @@ class MainViewModel : ViewModel() {
 
         viewModelScope.launch {
             try {
-                // LLM에게 대화 요약 요청
                 val summaryResponse = engine.process(
                     "이전 대화를 한 줄로 요약하고 카테고리를 분류해줘. " +
                     "형식: 요약|카테고리 (카테고리는 call, sms, chat 중 하나)"
                 )
-                val parts = summaryResponse.text.split("|").map { it.trim() }
+                val parts = summaryResponse.split("|").map { it.trim() }
                 val topic = parts.getOrElse(0) { "대화" }
                 val category = parts.getOrElse(1) { "chat" }.lowercase()
                     .let { if (it in listOf("call", "sms", "chat")) it else "chat" }
@@ -140,7 +123,6 @@ class MainViewModel : ViewModel() {
                 )
                 Log.d("MainViewModel", "대화 히스토리 저장: $topic ($category)")
             } catch (e: Exception) {
-                // 요약 실패 시 기본값으로 저장
                 Log.e("MainViewModel", "히스토리 요약 실패, 기본값 저장", e)
                 repo.save(
                     Conversation(
