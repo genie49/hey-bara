@@ -9,6 +9,7 @@ import android.service.notification.StatusBarNotification
 import android.util.Log
 import androidx.core.app.NotificationManagerCompat
 import android.app.RemoteInput
+import java.util.LinkedList
 
 data class NotificationInfo(
     val appName: String,
@@ -30,11 +31,32 @@ class BaraNotificationListener : NotificationListenerService() {
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
+        // 알림 히스토리 저장 (자기 앱 제외)
+        if (sbn.packageName != applicationContext.packageName) {
+            val extras = sbn.notification.extras
+            val title = extras.getCharSequence("android.title")?.toString() ?: ""
+            val content = extras.getCharSequence("android.text")?.toString() ?: ""
+            if (title.isNotBlank() || content.isNotBlank()) {
+                val appName = try {
+                    val appInfo = packageManager.getApplicationInfo(sbn.packageName, 0)
+                    packageManager.getApplicationLabel(appInfo).toString()
+                } catch (e: Exception) {
+                    sbn.packageName
+                }
+                val info = NotificationInfo(appName, title, content, sbn.postTime)
+                synchronized(notificationHistory) {
+                    notificationHistory.addFirst(info)
+                    if (notificationHistory.size > MAX_HISTORY_SIZE) {
+                        notificationHistory.removeLast()
+                    }
+                }
+                Log.d(TAG, "알림 저장: $appName - $title")
+            }
+        }
+
+        // 카카오톡 답장 Action 저장
         if (sbn.packageName != KAKAO_PACKAGE) return
-
         val roomName = sbn.notification.extras.getCharSequence("android.title")?.toString() ?: return
-
-        // RemoteInput이 있는 Action 찾기 (답장 기능)
         val action = findReplyAction(sbn.notification)
         if (action != null) {
             replyActions[roomName] = action
@@ -66,8 +88,12 @@ class BaraNotificationListener : NotificationListenerService() {
     companion object {
         private const val TAG = "BaraNotification"
         private const val KAKAO_PACKAGE = "com.kakao.talk"
+        private const val MAX_HISTORY_SIZE = 50
 
         private var instance: BaraNotificationListener? = null
+
+        // 최근 알림 히스토리 (최신순)
+        private val notificationHistory = LinkedList<NotificationInfo>()
 
         // 채팅방 이름 → 답장 Action
         val replyActions = mutableMapOf<String, Notification.Action>()
@@ -100,6 +126,12 @@ class BaraNotificationListener : NotificationListenerService() {
             } catch (e: Exception) {
                 Log.e(TAG, "카카오톡 전송 실패", e)
                 Result.failure(e)
+            }
+        }
+
+        fun getRecentNotifications(count: Int = 10): List<NotificationInfo> {
+            synchronized(notificationHistory) {
+                return notificationHistory.take(count)
             }
         }
 

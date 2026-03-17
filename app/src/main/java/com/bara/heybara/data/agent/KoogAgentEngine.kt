@@ -296,7 +296,7 @@ class KoogAgentEngine(
     object ListNotificationsTool : SimpleTool<ListNotificationsTool.Args>(
         argsSerializer = Args.serializer(),
         name = "list_notifications",
-        description = "현재 알림 목록을 조회한다."
+        description = "최근 수신된 알림 목록을 조회한다. 최신 10개를 반환한다."
     ) {
         var appContext: Context? = null
         @Serializable
@@ -306,9 +306,8 @@ class KoogAgentEngine(
             if (!BaraNotificationListener.isEnabled(ctx)) {
                 return "알림 접근 권한이 필요합니다. 설정에서 Hey Bara의 알림 접근을 허용해 주세요."
             }
-            val notifications = BaraNotificationListener.getActiveNotificationList(ctx)
-                ?: return "알림 서비스가 연결되지 않았습니다."
-            if (notifications.isEmpty()) return "알림이 없습니다."
+            val notifications = BaraNotificationListener.getRecentNotifications()
+            if (notifications.isEmpty()) return "최근 알림이 없습니다."
             return notifications.mapIndexed { i, n ->
                 "${i + 1}. ${n.appName}: ${n.title} — ${n.content}"
             }.joinToString("\n")
