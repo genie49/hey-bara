@@ -9,8 +9,8 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.bara.heybara.BaraApp
 import com.bara.heybara.R
-import com.bara.heybara.data.model.ModelInstaller
 import com.bara.heybara.data.action.DeviceContactResolver
+import com.bara.heybara.data.model.ModelInstaller
 import com.bara.heybara.data.agent.KoogAgentEngine
 import com.bara.heybara.data.settings.SecurePreferences
 import com.bara.heybara.data.voice.AndroidTtsEngine
@@ -22,7 +22,6 @@ import com.bara.heybara.domain.session.VoiceSession
 import com.bara.heybara.domain.voice.WakeWordDetector
 import com.bara.heybara.data.voice.SherpaKwsWakeWordDetector
 import com.bara.heybara.ui.OverlayBubbleView
-import com.bara.heybara.util.AssetCopier
 import kotlinx.coroutines.*
 import java.io.File
 
@@ -62,9 +61,11 @@ class VoiceAssistantService : Service() {
     }
 
     private fun startWakeWordDetection() {
-        // assets에서 내부 저장소로 KWS 모델 복사
         val kwsDir = File(filesDir, "models/kws")
-        AssetCopier.copyDirIfNeeded(this, "models/kws", kwsDir)
+        if (!ModelInstaller.isKwsInstalled(this)) {
+            Log.w(TAG, "KWS 모델 미설치, 웨이크워드 감지 건너뜀")
+            return
+        }
 
         wakeWordDetector = SherpaKwsWakeWordDetector(this, kwsDir.absolutePath)
         wakeWordDetector?.start {
@@ -76,7 +77,7 @@ class VoiceAssistantService : Service() {
         wakeWordDetector?.stop()
 
         // STT 모델 미설치 시 무시
-        if (!ModelInstaller.isInstalled(this)) {
+        if (!ModelInstaller.isSttInstalled(this)) {
             updateNotification("음성 모델 미설치")
             startWakeWordDetection()
             return

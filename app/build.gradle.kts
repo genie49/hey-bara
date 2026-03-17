@@ -68,6 +68,9 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
 
 
+    // tar.bz2 모델 다운로드용
+    implementation("org.apache.commons:commons-compress:1.27.1")
+
     // Sherpa-ONNX STT (local AAR)
     implementation(files("libs/sherpa-onnx-1.12.29.aar"))
 

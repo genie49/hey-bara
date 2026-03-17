@@ -97,7 +97,7 @@ class MainActivity : ComponentActivity() {
         val hasKey = SecurePreferences(this).getGeminiApiKey() != null
         viewModel.updateApiKeyStatus(hasKey)
         ModelInstaller.checkInstalled(this)
-        if (hasKey && ModelInstaller.isInstalled(this)) startVoiceService()
+        if (hasKey && ModelInstaller.isAllInstalled(this)) startVoiceService()
     }
 
     private fun requestPermissionsAndStart() {
@@ -139,7 +139,8 @@ fun MainScreen(viewModel: MainViewModel, overrideHasApiKey: Boolean? = null) {
     val hasApiKey by viewModel.hasApiKey.collectAsState()
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
-    val modelState by ModelInstaller.installState.collectAsState()
+    val sttState by ModelInstaller.sttState.collectAsState()
+    val kwsState by ModelInstaller.kwsState.collectAsState()
 
     LaunchedEffect(Unit) {
         ModelInstaller.checkInstalled(context)
@@ -147,7 +148,9 @@ fun MainScreen(viewModel: MainViewModel, overrideHasApiKey: Boolean? = null) {
 
     // Preview에서는 overrideHasApiKey 사용, 실제로는 ViewModel 상태
     val apiKeyAvailable = overrideHasApiKey ?: hasApiKey
-    val setupComplete = apiKeyAvailable && modelState == ModelInstaller.InstallState.INSTALLED
+    val modelsInstalled = sttState == ModelInstaller.InstallState.INSTALLED &&
+            kwsState == ModelInstaller.InstallState.INSTALLED
+    val setupComplete = apiKeyAvailable && modelsInstalled
 
     // 액션 확인 모달
     val confirmationRequest by ActionConfirmation.pendingRequest.collectAsState()
@@ -224,8 +227,8 @@ fun MainScreen(viewModel: MainViewModel, overrideHasApiKey: Boolean? = null) {
                     if (!apiKeyAvailable) {
                         Text("API Key가 설정되지 않았습니다", color = BaraColors.TextSecondary)
                     }
-                    if (modelState != ModelInstaller.InstallState.INSTALLED) {
-                        Text("음성 인식 모델이 설치되지 않았습니다", color = BaraColors.TextSecondary)
+                    if (!modelsInstalled) {
+                        Text("음성 모델이 설치되지 않았습니다", color = BaraColors.TextSecondary)
                     }
                     TextButton(onClick = {
                         context.startActivity(Intent(context, SettingsActivity::class.java))
