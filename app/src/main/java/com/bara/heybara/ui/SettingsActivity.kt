@@ -41,6 +41,7 @@ import com.bara.heybara.data.notification.BaraNotificationListener
 import com.bara.heybara.data.settings.SecurePreferences
 import com.bara.heybara.ui.theme.BaraColors
 import com.bara.heybara.ui.theme.HeyBaraTheme
+import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 
 class SettingsActivity : ComponentActivity() {
@@ -51,13 +52,15 @@ class SettingsActivity : ComponentActivity() {
     private val googleConsentLauncher = registerForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
-        val success = if (result.resultCode == RESULT_OK) {
-            val authResult = com.google.android.gms.auth.api.identity.Identity
-                .getAuthorizationClient(this)
-                .getAuthorizationResultFromIntent(result.data)
-            GoogleAuthManager.handleAuthResult(this, authResult)
-        } else false
-        onGoogleConsentResult?.invoke(success)
+        kotlinx.coroutines.MainScope().launch {
+            val success = if (result.resultCode == RESULT_OK) {
+                val authResult = com.google.android.gms.auth.api.identity.Identity
+                    .getAuthorizationClient(this@SettingsActivity)
+                    .getAuthorizationResultFromIntent(result.data)
+                GoogleAuthManager.handleAuthResult(this@SettingsActivity, authResult)
+            } else false
+            onGoogleConsentResult?.invoke(success)
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

@@ -7,34 +7,58 @@ import android.util.Log
 import com.bara.heybara.domain.voice.TtsEngine
 import kotlinx.coroutines.*
 
-class SupertonicTtsEngine(modelDir: String) : TtsEngine {
+class SupertonicTtsEngine(private val modelDir: String) : TtsEngine {
 
     companion object {
         private const val TAG = "SupertonicTts"
         private const val SAMPLE_RATE = 44100
+
+        // 모델을 한 번만 로딩하는 싱글톤
+        private var sharedInference: SupertonicInference? = null
+        private var sharedPreprocessor: TextPreprocessor? = null
+        private var loadedModelDir: String? = null
+
+        @Synchronized
+        private fun getOrLoadModels(modelDir: String): Pair<TextPreprocessor, SupertonicInference>? {
+            if (sharedInference != null && loadedModelDir == modelDir) {
+                return sharedPreprocessor!! to sharedInference!!
+            }
+            return try {
+                Log.d(TAG, "Supertonic 모델 로드 시작")
+                val preprocessor = TextPreprocessor(modelDir)
+                val inference = SupertonicInference(modelDir)
+                inference.load()
+                sharedPreprocessor = preprocessor
+                sharedInference = inference
+                loadedModelDir = modelDir
+                Log.d(TAG, "Supertonic 모델 로드 완료")
+                preprocessor to inference
+            } catch (e: Exception) {
+                Log.e(TAG, "모델 로드 실패", e)
+                null
+            }
+        }
     }
 
-    private val preprocessor = TextPreprocessor(modelDir)
-    private val inference = SupertonicInference(modelDir)
     private var audioTrack: AudioTrack? = null
-    private var isLoaded = false
 
     fun loadModels() {
-        if (isLoaded) return
-        try {
-            inference.load()
-            isLoaded = true
-            Log.d(TAG, "Supertonic 모델 로드 완료")
-        } catch (e: Exception) {
-            Log.e(TAG, "모델 로드 실패", e)
-        }
+        getOrLoadModels(modelDir)
     }
 
     override fun speak(text: String, onDone: () -> Unit) {
-        if (text.isBlank() || !isLoaded) {
+        if (text.isBlank()) {
             onDone()
             return
         }
+
+        val models = getOrLoadModels(modelDir)
+        if (models == null) {
+            onDone()
+            return
+        }
+
+        val (preprocessor, inference) = models
 
         CoroutineScope(Dispatchers.Default).launch {
             try {
@@ -95,7 +119,6 @@ class SupertonicTtsEngine(modelDir: String) : TtsEngine {
     override fun release() {
         audioTrack?.release()
         audioTrack = null
-        inference.release()
-        isLoaded = false
+        // 싱글톤 모델은 해제하지 않음 (다른 곳에서도 사용 가능)
     }
 }

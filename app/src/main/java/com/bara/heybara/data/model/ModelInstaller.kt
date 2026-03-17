@@ -68,9 +68,9 @@ object ModelInstaller {
         "unicode_indexer.json"
     )
 
-    // 보이스 스타일 (한국어 여성)
+    // 보이스 스타일 (여성 F1)
     private const val VOICE_STYLE_URL =
-        "https://huggingface.co/Supertone/supertonic-2/resolve/main/voices/ko_female_1.json"
+        "https://huggingface.co/Supertone/supertonic-2/resolve/main/voice_styles/F1.json"
 
     // --- KWS 상태 ---
     private val _kwsState = MutableStateFlow(InstallState.NOT_INSTALLED)
