@@ -20,17 +20,19 @@
 Sherpa-ONNX KWS (웨이크워드 "Hey Bara")   ~5MB  (zh-en 음소 모델)
   → Sherpa-ONNX Zipformer Korean (STT)    ~300MB (앱 내 다운로드)
     → Koog (AI Agent 프레임워크)
-      → NLP 엔진 (사용자 설정에서 선택)
+      → NLP 엔진
         ├── [A] Gemma 3n E2B (온디바이스)  ~2GB  | 오프라인 | 무료      [미구현]
         └── [B] Gemini API (클라우드)      ~0MB  | 온라인  | 무료 티어  [구현 완료]
-      → Tool 실행 (Human-in-the-Loop 확인 모달)
-        ├── CallManager (전화 걸기)                                    [구현 완료]
-        ├── SmsManager (문자 발송)                                     [구현 완료]
-        ├── CalendarManager (일정 조회/생성)                            [미구현]
-        ├── TaskManager (할일 조회/추가/완료)                           [미구현]
-        ├── KakaoSender (카카오톡 자동 전송)                            [미구현]
-        └── NotificationReader (알림 조회)                             [미구현]
-    → Android TTS (한국어 음성 응답)                                    [Supertonic 2 교체 예정]
+      → Tool 실행
+        ├── CallManager (전화 걸기)           — HITL 확인 모달          [구현 완료]
+        ├── SmsManager (문자 발송)            — HITL 확인 모달          [구현 완료]
+        ├── CalendarManager (일정 CRUD)       — Google Calendar API    [구현 완료]
+        ├── TaskManager (할일 CRUD)           — Google Tasks API       [구현 완료]
+        ├── KakaoSender (카카오톡 전송)        — RemoteInput 답장       [구현 완료]
+        ├── NotificationReader (알림 조회)     — NotificationListener   [구현 완료]
+        └── AppController (범용 앱 제어)       — AccessibilityService   [구현 완료]
+    → Supertonic 2 TTS (한국어 고품질 음성)   ~263MB (앱 내 다운로드)    [구현 완료]
+      → fallback: Android 기본 TTS
 ```
 
 ---
@@ -50,32 +52,21 @@ com/bara/heybara/
 │
 ├── data/                      ← 구체적 기술 구현, 외부 SDK 의존
 │   ├── voice/                 SherpaKwsWakeWordDetector, SherpaSpeechRecognizer, AndroidTtsEngine
-│   ├── agent/                 KoogAgentEngine (Koog + Gemini API)
+│   ├── tts/                   SupertonicTtsEngine, SupertonicInference, TextPreprocessor
+│   ├── agent/                 KoogAgentEngine (Koog + Gemini API, 13개 Tool)
+│   ├── auth/                  GoogleAuthManager (OAuth + UserInfo API)
+│   ├── calendar/              GoogleCalendarClient (REST API)
+│   ├── tasks/                 GoogleTasksClient (REST API)
+│   ├── notification/          BaraNotificationListener (알림 조회 + 카카오톡 RemoteInput)
+│   ├── accessibility/         BaraAccessibilityService, AppControlAgent (범용 앱 제어)
 │   ├── action/                DeviceContactResolver
 │   ├── history/               Room DB (ConversationEntity, ConversationDao, AppDatabase)
-│   ├── model/                 ModelInstaller (STT/KWS 모델 다운로드 관리)
-│   └── settings/              SecurePreferences (API Key, 웨이크워드 감도)
+│   ├── model/                 ModelInstaller (STT/KWS/TTS 모델 다운로드 관리)
+│   └── settings/              SecurePreferences (API Key, 감도, Google 계정, 등록 앱)
 │
 ├── service/                   ← ForegroundService (VoiceAssistantService)
-├── ui/                        ← Compose UI, ViewModel, SettingsActivity, HistoryActivity
-└── util/                      ← AssetCopier 등 유틸
+└── ui/                        ← Compose UI, ViewModel, SettingsActivity, HistoryActivity
 ```
-
-### 레이어 규칙
-
-| 레이어 | 역할 | 의존 가능 대상 | 금지 |
-|--------|------|---------------|------|
-| **domain** | 인터페이스, 상태, 비즈니스 로직 정의 | 없음 (순수 Kotlin) | Android SDK, 외부 라이브러리 |
-| **data** | domain 인터페이스의 실제 구현 | domain | ui, service |
-| **ui / service** | 사용자 상호작용, 서비스 생명주기 | domain, data | — |
-
-### 구현체 교체 예시
-
-| 인터페이스 (domain) | 현재 구현 (data) | 추후 교체 가능 |
-|---------------------|------------------|---------------|
-| `TtsEngine` | `AndroidTtsEngine` (기본 TTS) | `SupertonicTtsEngine` |
-| `SpeechRecognizer` | `SherpaSpeechRecognizer` | Google STT 등 |
-| `WakeWordDetector` | `SherpaKwsWakeWordDetector` | 다른 웨이크워드 엔진 |
 
 ---
 
@@ -85,66 +76,80 @@ com/bara/heybara/
 
 | 항목 | 내용 |
 |------|------|
-| 라이브러리 | `com.k2fsa.sherpa:sherpa-onnx` (AAR) |
 | 모델 | zh-en 음소 기반 (phone+ppinyin), chunk-8 int8 |
 | 웨이크워드 | "Hey Bara" (CMU phoneme: `HH EY1 B AA1 R AH0`) |
-| 동작 방식 | Foreground Service에서 마이크 상시 대기 |
 | 크기 | ~5MB (앱 내 다운로드) |
-| 감도 | 설정에서 조절 가능 (keywordsScore/keywordsThreshold 매핑) |
+| 감도 | 설정에서 조절 가능 |
 
 ### 2. STT - Sherpa-ONNX (Zipformer Korean)
 
 | 항목 | 내용 |
 |------|------|
-| 라이브러리 | `com.k2fsa.sherpa:sherpa-onnx` (AAR) |
 | 모델 | `sherpa-onnx-streaming-zipformer-korean-2024-06-16` |
-| 크기 | ~300MB (HuggingFace에서 앱 내 다운로드) |
-| 지연 | ~160ms (실시간 스트리밍) |
+| 크기 | ~300MB (HuggingFace 다운로드) |
 | 특징 | 온디바이스, 오프라인, 한국어 전용 |
 
-### 3. NLP 엔진
-
-#### 모드 B: Gemini API (클라우드) — 현재 사용 중
+### 3. NLP 엔진 - Gemini API
 
 | 항목 | 내용 |
 |------|------|
 | API | Google Gemini API (gemini-3.1-flash-lite-preview) |
-| 비용 | 무료 티어 |
-| Agent | Koog AIAgent + SimpleTool |
-| 특징 | Function Calling으로 Tool 실행 |
+| Agent | Koog AIAgent + 13개 SimpleTool |
+| 특징 | Function Calling, 대화 히스토리 관리, 현재 시각 주입 |
 
-#### 모드 A: Gemma 3n E2B (온디바이스) — 미구현
+### 4. Tool 목록 (13개)
 
-| 항목 | 내용 |
-|------|------|
-| 라이브러리 | `com.google.mediapipe:tasks-genai` (Google AI Edge) |
-| RAM | ~2GB |
-| 특징 | 오프라인, 무료, 한국어 지원 |
+| Tool | 용도 | 확인 모달 |
+|------|------|:--------:|
+| search_contacts | 연락처 검색 | - |
+| make_call | 전화 걸기 | O |
+| send_sms | 문자 보내기 | O |
+| send_kakao | 카카오톡 답장 | O |
+| list_events | 캘린더 일정 조회 | - |
+| create_event | 일정 생성 | - |
+| update_event | 일정 수정 | - |
+| delete_event | 일정 삭제 | - |
+| list_tasks | 할일 조회 | - |
+| create_task | 할일 생성 | - |
+| complete_task | 할일 완료 | - |
+| delete_task | 할일 삭제 | - |
+| list_notifications | 알림 조회 | - |
+| control_app | 범용 앱 제어 | - |
 
-### 4. 액션 실행 - Human-in-the-Loop
-
-| 항목 | 내용 |
-|------|------|
-| 패턴 | Tool 내부에서 `ActionConfirmation.requestConfirmation()` 호출 |
-| UI | 확인 모달 다이얼로그 (10초 카운트다운 + 자동 실행) |
-| 흐름 | AI가 Tool 호출 → 모달 표시 → 확인/취소 → Tool이 실제 실행 또는 "취소됨" 반환 |
-
-### 5. TTS - Android 기본 TTS
-
-| 항목 | 내용 |
-|------|------|
-| 구현 | `android.speech.tts.TextToSpeech` |
-| 언어 | `Locale.KOREAN` |
-| 추후 | Supertonic 2 (한국어 네이티브 TTS) 교체 예정 |
-
-### 6. 모델 관리 - ModelInstaller
+### 5. 범용 앱 제어 - AppControlAgent
 
 | 항목 | 내용 |
 |------|------|
-| STT | HuggingFace에서 개별 파일 다운로드 (~300MB) |
-| KWS | GitHub releases에서 tar.bz2 다운로드 후 추출 (~5MB) |
-| UI | 설정 화면에서 각 모델별 설치/진행률/완료 상태 표시 |
-| keywords.txt | 코드에서 직접 생성 (커스텀 웨이크워드) |
+| 방식 | AccessibilityService + Gemini Tool 기반 UI 탐색 (DroidBot-GPT 방식) |
+| Tool | click, long_click, type_text, scroll_down/up, press_enter, press_back, wait_and_get_screen |
+| 제한 | 최대 30 iteration, 등록된 앱만 제어 |
+| 설정 | 앱 등록 (설치 앱 목록에서 선택) + 접근성 권한 |
+
+### 6. TTS - Supertonic 2
+
+| 항목 | 내용 |
+|------|------|
+| 모델 | Supertonic 2 (66M params, ONNX) |
+| 파이프라인 | Duration Predictor → Text Encoder → Vector Estimator (2스텝) → Vocoder |
+| 크기 | ~263MB (HuggingFace 다운로드) |
+| 출력 | 44100Hz, 16-bit PCM, mono |
+| Fallback | Android 기본 TTS (모델 미설치 시) |
+
+### 7. 모델 관리 - ModelInstaller
+
+| 모델 | 크기 | 소스 |
+|------|------|------|
+| STT (Zipformer Korean) | ~300MB | HuggingFace 개별 파일 |
+| KWS (zh-en 음소) | ~5MB | GitHub release tar.bz2 |
+| TTS (Supertonic 2) | ~263MB | HuggingFace 개별 파일 |
+
+### 8. 인증 - GoogleAuthManager
+
+| 항목 | 내용 |
+|------|------|
+| 방식 | AuthorizationClient + GoogleAuthUtil + UserInfo API |
+| Scope | calendar, tasks, email |
+| 토큰 | 로그인 시 prefetch, 캐싱, 실패 시 전체 클리어 |
 
 ---
 
@@ -154,27 +159,44 @@ com/bara/heybara/
 
 | 기능 | 구현 방식 |
 |------|----------|
-| 전화 걸기 | `Intent.ACTION_CALL` (Tool 내 직접 실행) |
-| SMS 발송 | `SmsManager.sendTextMessage()` (Tool 내 직접 실행) |
-| 연락처 검색 | ContentResolver LIKE 검색 (SearchContactsTool) |
-| 대화 히스토리 | Room DB + LLM 요약 (별도 에이전트) + sessionId 기반 upsert |
-| 텍스트 채팅 | 메인 화면 입력창에서 직접 명령 |
-
-### 미구현 (Phase 4+)
-
-| 기능 | 구현 방식 |
-|------|----------|
-| 캘린더 일정 조회/생성 | Google Calendar API |
-| 할일 조회/추가/완료 | Google Tasks API |
-| 카카오톡 전송 | AccessibilityService (UI 자동 조작) |
+| 전화 걸기 | Intent.ACTION_CALL (HITL 확인 모달) |
+| SMS 발송 | SmsManager (HITL 확인 모달) |
+| 카카오톡 전송 | NotificationListener RemoteInput (HITL 확인 모달) |
+| 연락처 검색 | ContentResolver LIKE 검색 |
+| 캘린더 CRUD | Google Calendar REST API |
+| 할일 CRUD | Google Tasks REST API |
 | 알림 조회 | NotificationListenerService |
+| 범용 앱 제어 | AccessibilityService + Gemini Tool 기반 |
+| 대화 히스토리 | Room DB + LLM 요약 + sessionId upsert |
+| 텍스트 채팅 | 메인 화면 입력창 |
+| 모델 다운로드 | 설정 화면에서 STT/KWS/TTS 개별 다운로드 |
+
+### 미구현
+
+| 기능 | 비고 |
+|------|------|
+| 온디바이스 NLP (Gemma 3n) | 오프라인 모드, 설정에서 전환 |
 
 ---
 
-## Android 권한 요약
+## 설정 화면
+
+| 섹션 | 내용 |
+|------|------|
+| Gemini API 키 | 입력/삭제 |
+| Google 계정 | 연결/해제 (Calendar, Tasks, Email scope) |
+| 음성 모델 | STT/KWS/TTS 설치 + TTS 듣기 버튼 |
+| 알림 접근 | NotificationListener 권한 |
+| 앱 제어 | 접근성 서비스 권한 + 앱 등록/삭제 |
+| AI 엔진 | 클라우드/온디바이스 선택 (온디바이스 미구현) |
+| 웨이크워드 감도 | 슬라이더 (0~1) |
+
+---
+
+## Android 권한
 
 ```xml
-<!-- 현재 사용 중 -->
+<!-- 사용 중 -->
 <uses-permission android:name="android.permission.RECORD_AUDIO"/>
 <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
 <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE"/>
@@ -184,44 +206,18 @@ com/bara/heybara/
 <uses-permission android:name="android.permission.CALL_PHONE"/>
 <uses-permission android:name="android.permission.SEND_SMS"/>
 <uses-permission android:name="android.permission.READ_CONTACTS"/>
+<uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"/>
 
-<!-- Phase 4+ 추가 예정 -->
-<uses-permission android:name="android.permission.READ_SMS"/>
-<uses-permission android:name="android.permission.READ_CALL_LOG"/>
-<!-- + Google Calendar/Tasks OAuth, NotificationListener, AccessibilityService -->
+<!-- 서비스 -->
+NotificationListenerService (알림 조회 + 카카오톡 RemoteInput)
+AccessibilityService (범용 앱 제어)
 ```
 
 ---
 
-## RAM 사용량 시나리오 (Galaxy S25 Edge, 12GB)
+## 사전 설정
 
-```
-모드 B (Gemini API 클라우드) — 현재:
-  Android OS + 기본 앱       ~4.0GB
-  Sherpa-ONNX KWS            ~0.005GB
-  Sherpa-ONNX Zipformer      ~0.2GB
-  Android TTS                ~0.01GB
-  기타 서비스                 ~0.5GB
-  ─────────────────────────
-  합계                       ~4.7GB / 12GB ✅✅
-
-모드 A (Gemma 3n 온디바이스) — 추후:
-  + Gemma 3n E2B             ~2.0GB
-  ─────────────────────────
-  합계                       ~6.7GB / 12GB ✅
-```
-
----
-
-## 사전 설정 필요 사항
-
-1. **Google AI Studio** - Gemini API 키 발급 (앱 설정 화면에서 입력)
-2. **모델 설치** - 앱 설정 화면에서 STT/KWS 모델 다운로드 (Wi-Fi 권장)
-
----
-
-## Google Play 정책 참고
-
-- SMS/전화 권한: Google Play 심사 엄격 → **개인용 APK 사이드로딩**
-- Accessibility Service: 스토어 등록 사실상 불가 → **사이드로딩**
-- **결론: 개인용 사이드로딩으로 사용**
+1. **Google AI Studio** - Gemini API 키 발급 (앱 설정에서 입력)
+2. **Google Cloud Console** - OAuth 클라이언트 ID (Android, SHA-1) + Calendar/Tasks API 활성화
+3. **모델 설치** - 앱 설정에서 STT/KWS/TTS 다운로드
+4. **권한** - 알림 접근, 접근성 서비스 (앱 설정에서 안내)

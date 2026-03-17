@@ -57,7 +57,9 @@ class BaraNotificationListener : NotificationListenerService() {
             wearableActions.forEach { action ->
                 if (action.remoteInputs?.isNotEmpty() == true) return action
             }
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            Log.w(TAG, "WearableExtender 파싱 실패 (무시)", e)
+        }
         return null
     }
 

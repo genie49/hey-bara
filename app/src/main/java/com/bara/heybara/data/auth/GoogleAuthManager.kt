@@ -203,10 +203,12 @@ object GoogleAuthManager {
         SecurePreferences(context).clearGoogleAccount()
         try {
             GoogleSignIn.getClient(context, GoogleSignInOptions.DEFAULT_SIGN_IN).signOut()
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            Log.w(TAG, "SignOut 실패 (무시)", e)
+        }
         // 토큰 캐시도 무효화
         if (cachedToken != null) {
-            try { GoogleAuthUtil.clearToken(context, cachedToken!!) } catch (_: Exception) {}
+            try { GoogleAuthUtil.clearToken(context, cachedToken!!) } catch (e: Exception) { Log.w(TAG, "clearToken 실패 (무시)", e) }
             cachedToken = null
         }
     }

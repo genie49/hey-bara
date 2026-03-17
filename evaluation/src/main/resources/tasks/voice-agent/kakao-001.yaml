@@ -1,0 +1,22 @@
+id: voice-agent/kakao-001
+input: "철수한테 밥 먹자고 카톡 보내줘"
+dataset: default-contacts
+expected:
+  tool_calls:
+    mode: superset
+    calls:
+      - tool: send_kakao
+  output_contains_any:
+    - "카톡"
+    - "카카오"
+    - "보냈"
+  constraints:
+    max_turns: 5
+    max_toolcalls: 3
+  llm_grader:
+    rubric: response-quality.md
+    min_score: 0.7
+metadata:
+  category: kakao
+  description: "카카오톡 메시지 전송 — send_kakao 호출"
+  tags: [kakao, basic]

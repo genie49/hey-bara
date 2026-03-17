@@ -1,0 +1,20 @@
+id: voice-agent/notification-001
+input: "알림 뭐 왔어?"
+dataset: default-contacts
+expected:
+  tool_calls:
+    mode: superset
+    calls:
+      - tool: list_notifications
+  output_contains_any:
+    - "알림"
+  constraints:
+    max_turns: 5
+    max_toolcalls: 3
+  llm_grader:
+    rubric: response-quality.md
+    min_score: 0.7
+metadata:
+  category: notification
+  description: "알림 조회 — list_notifications 호출"
+  tags: [notification, basic]
