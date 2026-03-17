@@ -14,6 +14,7 @@ import ai.koog.prompt.llm.LLMCapability
 import ai.koog.prompt.llm.LLModel
 import ai.koog.prompt.llm.LLMProvider
 import com.bara.heybara.data.calendar.GoogleCalendarClient
+import com.bara.heybara.data.notification.BaraNotificationListener
 import com.bara.heybara.data.tasks.GoogleTasksClient
 import com.bara.heybara.domain.action.ActionConfirmation
 import com.bara.heybara.domain.action.ActionType
@@ -255,6 +256,30 @@ class KoogAgentEngine(
         }
     }
 
+    // ── 알림 Tool ──
+
+    object ListNotificationsTool : SimpleTool<ListNotificationsTool.Args>(
+        argsSerializer = Args.serializer(),
+        name = "list_notifications",
+        description = "현재 알림 목록을 조회한다."
+    ) {
+        var appContext: Context? = null
+        @Serializable
+        class Args
+        override suspend fun execute(args: Args): String {
+            val ctx = appContext ?: return "알림 서비스가 연결되지 않았습니다."
+            if (!BaraNotificationListener.isEnabled(ctx)) {
+                return "알림 접근 권한이 필요합니다. 설정에서 Hey Bara의 알림 접근을 허용해 주세요."
+            }
+            val notifications = BaraNotificationListener.getActiveNotificationList(ctx)
+                ?: return "알림 서비스가 연결되지 않았습니다."
+            if (notifications.isEmpty()) return "알림이 없습니다."
+            return notifications.mapIndexed { i, n ->
+                "${i + 1}. ${n.appName}: ${n.title} — ${n.content}"
+            }.joinToString("\n")
+        }
+    }
+
     // ── Engine 설정 ──
 
     private val executor = simpleGoogleAIExecutor(apiKey)
@@ -281,6 +306,7 @@ class KoogAgentEngine(
         tool(CreateTaskTool)
         tool(CompleteTaskTool)
         tool(DeleteTaskTool)
+        tool(ListNotificationsTool)
     }
 
     private fun buildSystemPrompt(): String {
@@ -299,6 +325,8 @@ ${BASE_SYSTEM_PROMPT.trimIndent()}
 - 할일 완료/삭제 전에 list_tasks로 taskId를 먼저 확인해
 - 날짜는 ISO 8601 형식으로 변환해 (예: 2026-03-18T15:00:00+09:00)
 - "내일", "다음 주 월요일" 같은 상대 날짜는 현재 시각 기준으로 계산해
+
+알림 관련 요청이 오면 list_notifications를 사용해.
 """.trimIndent()
 
         if (conversationHistory.isEmpty()) return base
@@ -332,6 +360,7 @@ ${BASE_SYSTEM_PROMPT.trimIndent()}
 
     fun setContext(context: Context) {
         MakeCallTool.appContext = context.applicationContext
+        ListNotificationsTool.appContext = context.applicationContext
     }
 
     fun setGoogleClients(calendarClient: GoogleCalendarClient?, tasksClient: GoogleTasksClient?) {
