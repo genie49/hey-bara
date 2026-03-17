@@ -30,7 +30,7 @@ class GoogleCalendarClient(private val context: Context) {
                 val endDate = java.time.LocalDate.parse(date).plusDays(days.toLong())
                 val timeMax = "${endDate}T00:00:00+09:00"
 
-                val url = "$BASE_URL/calendars/${enc(CALENDAR_ID)}/events" +
+                val url = "$BASE_URL/calendars/${CALENDAR_ID}/events" +
                         "?timeMin=${enc(timeMin)}&timeMax=${enc(timeMax)}" +
                         "&maxResults=20&singleEvents=true&orderBy=startTime" +
                         "&timeZone=${enc(TIME_ZONE)}"
@@ -90,7 +90,8 @@ class GoogleCalendarClient(private val context: Context) {
                     }
                 }
 
-                val url = "$BASE_URL/calendars/${enc(CALENDAR_ID)}/events"
+                val url = "$BASE_URL/calendars/$CALENDAR_ID/events"
+                Log.d(TAG, "createEvent body: $body")
                 httpPost(url, token, body.toString())
                 "'$title' 일정을 추가했습니다. ($startDateTime)"
             } catch (e: Exception) {
@@ -127,7 +128,7 @@ class GoogleCalendarClient(private val context: Context) {
                     }
                 }
 
-                val url = "$BASE_URL/calendars/${enc(CALENDAR_ID)}/events/${enc(eventId)}"
+                val url = "$BASE_URL/calendars/${CALENDAR_ID}/events/${enc(eventId)}"
                 httpPatch(url, token, body.toString())
                 "일정을 수정했습니다."
             } catch (e: Exception) {
@@ -143,7 +144,7 @@ class GoogleCalendarClient(private val context: Context) {
 
         return withContext(Dispatchers.IO) {
             try {
-                val url = "$BASE_URL/calendars/${enc(CALENDAR_ID)}/events/${enc(eventId)}"
+                val url = "$BASE_URL/calendars/${CALENDAR_ID}/events/${enc(eventId)}"
                 httpDelete(url, token)
                 "일정을 삭제했습니다."
             } catch (e: Exception) {
