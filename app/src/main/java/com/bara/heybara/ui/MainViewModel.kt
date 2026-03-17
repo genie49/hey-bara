@@ -18,6 +18,7 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.UUID
 
 data class ChatMessage(
     val text: String,
@@ -39,8 +40,9 @@ class MainViewModel : ViewModel() {
     val hasApiKey: StateFlow<Boolean> = _hasApiKey
 
     private var agentEngine: KoogAgentEngine? = null
-    private var conversationRepository: ConversationRepository? = null
+    private var conversationRepository: RoomConversationRepository? = null
     private var appContext: Context? = null
+    private var currentSessionId: String = UUID.randomUUID().toString()
 
     fun updateState(state: SessionState) {
         _sessionState.value = state
@@ -54,6 +56,7 @@ class MainViewModel : ViewModel() {
         _messages.value = emptyList()
         agentEngine?.release()
         agentEngine = null
+        currentSessionId = UUID.randomUUID().toString()
     }
 
     fun updatePartialText(text: String) {
@@ -102,13 +105,14 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    // LLM 요약 후 Room DB에 저장 (별도 에이전트로 요약하여 대화 히스토리에 섞이지 않음)
+    // LLM 요약 후 Room DB에 upsert (sessionId 기준으로 같은 세션은 덮어씀)
     private fun saveConversationHistory() {
         val engine = agentEngine ?: return
         val repo = conversationRepository ?: return
         val transcript = engine.getConversationTranscript()
         if (transcript.isBlank()) return
 
+        val sessionId = currentSessionId
         viewModelScope.launch {
             try {
                 // 별도 에이전트로 요약 (메인 대화 히스토리에 영향 없음)
@@ -126,27 +130,11 @@ class MainViewModel : ViewModel() {
                 val category = parts.getOrElse(1) { "chat" }.lowercase()
                     .let { if (it in listOf("call", "sms", "chat")) it else "chat" }
 
-                repo.save(
-                    Conversation(
-                        topic = topic,
-                        category = category,
-                        inputMode = "text",
-                        timestamp = System.currentTimeMillis(),
-                        transcript = transcript
-                    )
-                )
-                Log.d("MainViewModel", "대화 히스토리 저장: $topic ($category)")
+                repo.upsertBySession(sessionId, topic, category, "text", transcript)
+                Log.d("MainViewModel", "대화 히스토리 저장: $topic ($category) [session=$sessionId]")
             } catch (e: Exception) {
                 Log.e("MainViewModel", "히스토리 요약 실패, 기본값 저장", e)
-                repo.save(
-                    Conversation(
-                        topic = "대화",
-                        category = "chat",
-                        inputMode = "text",
-                        timestamp = System.currentTimeMillis(),
-                        transcript = transcript
-                    )
-                )
+                repo.upsertBySession(sessionId, "대화", "chat", "text", transcript)
             }
         }
     }
