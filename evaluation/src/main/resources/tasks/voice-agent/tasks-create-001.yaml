@@ -1,0 +1,21 @@
+id: voice-agent/tasks-create-001
+input: "약 사기 할일 추가해줘"
+dataset: default-contacts
+expected:
+  tool_calls:
+    mode: superset
+    calls:
+      - tool: create_task
+  output_contains_any:
+    - "추가"
+    - "약"
+  constraints:
+    max_turns: 5
+    max_toolcalls: 3
+  llm_grader:
+    rubric: response-quality.md
+    min_score: 0.7
+metadata:
+  category: tasks
+  description: "할일 생성 — create_task 호출"
+  tags: [tasks, create, basic]

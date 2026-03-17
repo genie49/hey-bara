@@ -1,0 +1,22 @@
+id: voice-agent/tasks-delete-001
+input: "보고서 작성 할일 삭제해줘"
+dataset: default-contacts
+expected:
+  tool_calls:
+    mode: superset
+    calls:
+      - tool: list_tasks
+      - tool: delete_task
+  output_contains_any:
+    - "삭제"
+    - "보고서"
+  constraints:
+    max_turns: 5
+    max_toolcalls: 5
+  llm_grader:
+    rubric: response-quality.md
+    min_score: 0.7
+metadata:
+  category: tasks
+  description: "할일 삭제 — list_tasks로 ID 확인 후 delete_task 호출"
+  tags: [tasks, delete, basic]

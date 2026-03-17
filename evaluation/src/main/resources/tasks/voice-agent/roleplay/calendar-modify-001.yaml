@@ -1,0 +1,23 @@
+id: voice-agent/roleplay-calendar-modify-001
+type: roleplay
+persona: |
+  당신은 바쁜 직장인입니다.
+  짧고 간결하게 말합니다.
+  일정을 수정하고 싶은데 처음에는 모호하게 말하고, 질문에 구체적으로 답합니다.
+goal: |
+  1. 에이전트가 어떤 일정인지 물어본다
+  2. 사용자가 "치과"라고 답한다
+  3. 에이전트가 list_events로 일정을 확인한다
+  4. 에이전트가 무엇을 변경할지 물어본다
+  5. 사용자가 "4시로"라고 답한다
+  6. 에이전트가 update_event를 호출한다
+initial_message: "일정 하나 수정해줘"
+dataset: default-contacts
+max_turns: 8
+completion_criteria:
+  rubric: conversation-quality.md
+  min_score: 0.7
+metadata:
+  category: roleplay
+  description: "캘린더 일정 수정 멀티턴 대화"
+  tags: [calendar, update, roleplay]
