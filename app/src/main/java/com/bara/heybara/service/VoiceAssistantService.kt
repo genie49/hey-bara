@@ -67,7 +67,8 @@ class VoiceAssistantService : Service() {
             return
         }
 
-        wakeWordDetector = SherpaKwsWakeWordDetector(this, kwsDir.absolutePath)
+        val sensitivity = SecurePreferences(this).getWakeWordSensitivity()
+        wakeWordDetector = SherpaKwsWakeWordDetector(this, kwsDir.absolutePath, sensitivity)
         wakeWordDetector?.start {
             onWakeWordDetected()
         }

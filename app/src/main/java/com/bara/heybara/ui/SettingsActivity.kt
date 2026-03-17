@@ -14,6 +14,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -203,6 +204,12 @@ fun SettingsScreen(securePrefs: SecurePreferences, onBack: () -> Unit) {
             }
 
             // 웨이크워드 감도 섹션
+            var sensitivity by remember { mutableFloatStateOf(securePrefs.getWakeWordSensitivity()) }
+            val sensitivityLabel = when {
+                sensitivity < 0.25f -> "낮음"
+                sensitivity < 0.75f -> "보통"
+                else -> "높음"
+            }
             SettingsSection(label = "웨이크워드 감도") {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(
@@ -212,16 +219,23 @@ fun SettingsScreen(securePrefs: SecurePreferences, onBack: () -> Unit) {
                     ) {
                         Text("\"헤이 바라\" 감도", color = BaraColors.TextPrimary, fontSize = 14.sp)
                         Spacer(modifier = Modifier.weight(1f))
-                        Text("보통", color = BaraColors.Coral, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        Text(sensitivityLabel, color = BaraColors.Coral, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                     }
-                    // TODO: 슬라이더 연결
                     Slider(
-                        value = 0.5f,
-                        onValueChange = {},
+                        value = sensitivity,
+                        onValueChange = {
+                            sensitivity = it
+                            securePrefs.setWakeWordSensitivity(it)
+                        },
                         colors = SliderDefaults.colors(
                             thumbColor = BaraColors.Coral,
                             activeTrackColor = BaraColors.Coral
                         )
+                    )
+                    Text(
+                        "감도를 변경하면 다음 웨이크워드 감지부터 적용됩니다",
+                        color = BaraColors.TextTertiary,
+                        fontSize = 11.sp
                     )
                 }
             }

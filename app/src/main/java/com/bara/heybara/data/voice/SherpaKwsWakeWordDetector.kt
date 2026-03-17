@@ -17,7 +17,8 @@ import kotlin.concurrent.thread
 
 class SherpaKwsWakeWordDetector(
     private val context: Context,
-    private val modelDir: String  // KWS 모델 파일 디렉토리 경로
+    private val modelDir: String,
+    private val sensitivity: Float = 0.5f  // 0.0(둔감) ~ 1.0(민감)
 ) : WakeWordDetector {
 
     companion object {
@@ -50,8 +51,9 @@ class SherpaKwsWakeWordDetector(
                 modelType = "zipformer2",
             ),
             keywordsFile = "$modelDir/keywords.txt",
-            keywordsScore = 1.5f,
-            keywordsThreshold = 0.25f,
+            // sensitivity 0.0~1.0 → score 0.5~3.0 (높을수록 민감), threshold 0.5~0.05 (낮을수록 민감)
+            keywordsScore = 0.5f + sensitivity * 2.5f,
+            keywordsThreshold = 0.5f - sensitivity * 0.45f,
         )
         keywordSpotter = KeywordSpotter(null, config)
 

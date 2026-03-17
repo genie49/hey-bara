@@ -31,7 +31,17 @@ class SecurePreferences(context: Context) {
         prefs.edit().remove(KEY_GEMINI_API).apply()
     }
 
+    // 웨이크워드 감도 (0.0~1.0, 기본 0.5)
+    fun getWakeWordSensitivity(): Float {
+        return prefs.getFloat(KEY_WAKE_SENSITIVITY, 0.5f)
+    }
+
+    fun setWakeWordSensitivity(value: Float) {
+        prefs.edit().putFloat(KEY_WAKE_SENSITIVITY, value).apply()
+    }
+
     companion object {
         private const val KEY_GEMINI_API = "gemini_api_key"
+        private const val KEY_WAKE_SENSITIVITY = "wake_word_sensitivity"
     }
 }
