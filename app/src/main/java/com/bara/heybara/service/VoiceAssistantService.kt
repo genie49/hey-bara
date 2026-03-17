@@ -8,7 +8,6 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.bara.heybara.BaraApp
-import com.bara.heybara.BuildConfig
 import com.bara.heybara.R
 import com.bara.heybara.data.action.ActionExecutorImpl
 import com.bara.heybara.data.action.CallExecutor
@@ -24,7 +23,7 @@ import com.bara.heybara.domain.agent.AgentEngine
 import com.bara.heybara.domain.session.SessionState
 import com.bara.heybara.domain.session.VoiceSession
 import com.bara.heybara.domain.voice.WakeWordDetector
-import com.bara.heybara.data.voice.PorcupineWakeWordDetector
+import com.bara.heybara.data.voice.SherpaKwsWakeWordDetector
 import com.bara.heybara.ui.OverlayBubbleView
 import com.bara.heybara.util.AssetCopier
 import kotlinx.coroutines.*
@@ -68,16 +67,11 @@ class VoiceAssistantService : Service() {
     }
 
     private fun startWakeWordDetection() {
-        // assets에서 내부 저장소로 모델 복사
-        val wakeWordDir = File(filesDir, "models/wakeword")
-        AssetCopier.copyIfNeeded(this, "models/wakeword/hey-bara.ppn", wakeWordDir)
-        AssetCopier.copyIfNeeded(this, "models/wakeword/porcupine_params_ko.pv", wakeWordDir)
+        // assets에서 내부 저장소로 KWS 모델 복사
+        val kwsDir = File(filesDir, "models/kws")
+        AssetCopier.copyDirIfNeeded(this, "models/kws", kwsDir)
 
-        val keywordPath = File(wakeWordDir, "hey-bara.ppn").absolutePath
-        val modelPath = File(wakeWordDir, "porcupine_params_ko.pv").absolutePath
-        val accessKey = BuildConfig.PORCUPINE_ACCESS_KEY
-
-        wakeWordDetector = PorcupineWakeWordDetector(this, accessKey, keywordPath, modelPath)
+        wakeWordDetector = SherpaKwsWakeWordDetector(this, kwsDir.absolutePath)
         wakeWordDetector?.start {
             onWakeWordDetected()
         }
