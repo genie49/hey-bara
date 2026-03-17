@@ -415,7 +415,6 @@ fun SettingsOptionRow(title: String, subtitle: String, enabled: Boolean) {
 @Composable
 fun SettingsScreenPreview() {
     HeyBaraTheme {
-        // Preview용: SecurePreferences 없이 정적 UI
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -435,21 +434,49 @@ fun SettingsScreenPreview() {
             }
 
             Column(
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 24.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
+                // API 키
                 SettingsSection(label = "Gemini API 키") {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("\uD83D\uDD11", fontSize = 16.sp)
-                        Spacer(modifier = Modifier.width(12.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Text("AIza...7x9Q", color = BaraColors.TextPrimary, fontSize = 14.sp, modifier = Modifier.weight(1f))
                         Icon(Icons.Default.Close, contentDescription = "삭제", tint = BaraColors.TextTertiary, modifier = Modifier.size(18.dp))
                     }
                 }
 
+                // Google 계정
+                SettingsSection(label = "Google 계정 (캘린더/할일)") {
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text("user@gmail.com", color = BaraColors.TextPrimary, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                        Icon(Icons.Default.Close, contentDescription = "연결 해제", tint = BaraColors.TextTertiary, modifier = Modifier.size(18.dp))
+                    }
+                }
+
+                // 음성 모델
+                SettingsSection(label = "음성 모델") {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("음성 인식 (Korean STT)", color = BaraColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                Text("~300MB · 한국어 음성 인식", color = BaraColors.TextTertiary, fontSize = 12.sp)
+                            }
+                            Text("설치 완료", color = BaraColors.Green, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                        HorizontalDivider(color = BaraColors.Background, thickness = 1.dp)
+                        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("웨이크워드 (Hey Bara)", color = BaraColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                Text("~5MB · 음성 호출 감지", color = BaraColors.TextTertiary, fontSize = 12.sp)
+                            }
+                            Text("설치 완료", color = BaraColors.Green, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+
+                // AI 엔진
                 SettingsSection(label = "AI 엔진") {
                     Column {
                         SettingsOptionRow("온디바이스 (Gemma 3n)", "오프라인, 무료, 프라이버시 보호", false)
@@ -458,6 +485,7 @@ fun SettingsScreenPreview() {
                     }
                 }
 
+                // 웨이크워드 감도
                 SettingsSection(label = "웨이크워드 감도") {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(modifier = Modifier.fillMaxWidth()) {
