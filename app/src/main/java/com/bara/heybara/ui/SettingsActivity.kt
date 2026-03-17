@@ -24,8 +24,11 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.content.Intent
+import android.provider.Settings
 import com.bara.heybara.data.auth.GoogleAuthManager
 import com.bara.heybara.data.model.ModelInstaller
+import com.bara.heybara.data.notification.BaraNotificationListener
 import com.bara.heybara.data.settings.SecurePreferences
 import com.bara.heybara.ui.theme.BaraColors
 import com.bara.heybara.ui.theme.HeyBaraTheme
@@ -255,6 +258,52 @@ fun SettingsScreen(
                         progress = kwsProgress,
                         onInstall = { scope.launch { ModelInstaller.installKws(context) } }
                     )
+                }
+            }
+
+            // 알림 접근 권한 섹션
+            var notificationEnabled by remember { mutableStateOf(false) }
+            val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+            LaunchedEffect(lifecycleOwner) {
+                val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+                    if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                        notificationEnabled = BaraNotificationListener.isEnabled(context)
+                    }
+                }
+                lifecycleOwner.lifecycle.addObserver(observer)
+            }
+            SettingsSection(label = "알림 접근") {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "알림 조회 권한",
+                            color = BaraColors.TextPrimary,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            "\"알림 뭐 왔어?\" 기능에 필요",
+                            color = BaraColors.TextTertiary,
+                            fontSize = 12.sp
+                        )
+                    }
+                    if (notificationEnabled) {
+                        Text("허용됨", color = BaraColors.Green, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    } else {
+                        Button(
+                            onClick = {
+                                context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = BaraColors.Coral),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                        ) {
+                            Text("설정", fontSize = 13.sp)
+                        }
+                    }
                 }
             }
 
