@@ -131,6 +131,7 @@ fun MainScreen(viewModel: MainViewModel, overrideHasApiKey: Boolean? = null) {
         modifier = Modifier
             .fillMaxSize()
             .background(BaraColors.Background)
+            .imePadding()
     ) {
         // 헤더
         Row(
@@ -223,10 +224,15 @@ fun MainScreen(viewModel: MainViewModel, overrideHasApiKey: Boolean? = null) {
             TextField(
                 value = inputText,
                 onValueChange = { inputText = it },
-                placeholder = { Text("메시지를 입력하세요...") },
+                placeholder = { Text("메시지를 입력하세요...", color = BaraColors.TextTertiary) },
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(22.dp),
                 colors = TextFieldDefaults.colors(
+                    focusedContainerColor = BaraColors.CardSurface,
+                    unfocusedContainerColor = BaraColors.CardSurface,
+                    focusedTextColor = BaraColors.TextPrimary,
+                    unfocusedTextColor = BaraColors.TextPrimary,
+                    cursorColor = BaraColors.Coral,
                     focusedIndicatorColor = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent
                 )
