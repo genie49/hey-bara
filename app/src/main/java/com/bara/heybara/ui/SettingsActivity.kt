@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -23,7 +24,6 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import android.app.Activity
 import com.bara.heybara.data.auth.GoogleAuthManager
 import com.bara.heybara.data.model.ModelInstaller
 import com.bara.heybara.data.settings.SecurePreferences
@@ -33,6 +33,21 @@ import kotlinx.coroutines.launch
 
 class SettingsActivity : ComponentActivity() {
 
+    // Google 동의 화면 결과를 전달할 콜백
+    private var onGoogleConsentResult: ((Boolean) -> Unit)? = null
+
+    private val googleConsentLauncher = registerForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        val success = if (result.resultCode == RESULT_OK) {
+            val authResult = com.google.android.gms.auth.api.identity.Identity
+                .getAuthorizationClient(this)
+                .getAuthorizationResultFromIntent(result.data)
+            GoogleAuthManager.handleAuthResult(this, authResult)
+        } else false
+        onGoogleConsentResult?.invoke(success)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -41,7 +56,21 @@ class SettingsActivity : ComponentActivity() {
             HeyBaraTheme {
                 SettingsScreen(
                     securePrefs = securePrefs,
-                    onBack = { finish() }
+                    onBack = { finish() },
+                    onGoogleSignIn = { onResult ->
+                        onGoogleConsentResult = onResult
+                        kotlinx.coroutines.MainScope().launch {
+                            when (val signInResult = GoogleAuthManager.signIn(this@SettingsActivity)) {
+                                is GoogleAuthManager.SignInResult.Success -> onResult(true)
+                                is GoogleAuthManager.SignInResult.NeedsConsent -> {
+                                    val intentSenderRequest = androidx.activity.result.IntentSenderRequest
+                                        .Builder(signInResult.pendingIntent).build()
+                                    googleConsentLauncher.launch(intentSenderRequest)
+                                }
+                                is GoogleAuthManager.SignInResult.Failed -> onResult(false)
+                            }
+                        }
+                    }
                 )
             }
         }
@@ -49,7 +78,11 @@ class SettingsActivity : ComponentActivity() {
 }
 
 @Composable
-fun SettingsScreen(securePrefs: SecurePreferences, onBack: () -> Unit) {
+fun SettingsScreen(
+    securePrefs: SecurePreferences,
+    onBack: () -> Unit,
+    onGoogleSignIn: ((Boolean) -> Unit) -> Unit = {}
+) {
     val existingKey = securePrefs.getGeminiApiKey()
     var apiKeyInput by remember { mutableStateOf("") }
     var savedMessage by remember { mutableStateOf<String?>(null) }
@@ -184,12 +217,8 @@ fun SettingsScreen(securePrefs: SecurePreferences, onBack: () -> Unit) {
                 } else {
                     Button(
                         onClick = {
-                            scope.launch {
-                                val activity = context as? Activity
-                                if (activity != null) {
-                                    val success = GoogleAuthManager.signIn(activity)
-                                    if (success) googleEmail = GoogleAuthManager.getAccountEmail()
-                                }
+                            onGoogleSignIn { success ->
+                                if (success) googleEmail = GoogleAuthManager.getAccountEmail()
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
