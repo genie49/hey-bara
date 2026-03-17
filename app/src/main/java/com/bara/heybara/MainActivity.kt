@@ -382,15 +382,27 @@ fun ActionConfirmationDialog(
                     modifier = Modifier
                         .size(56.dp)
                         .background(
-                            if (type == ActionType.CALL) BaraColors.GreenBadgeBg else BaraColors.IndigoBadgeBg,
+                            when (type) {
+                                ActionType.CALL -> BaraColors.GreenBadgeBg
+                                ActionType.SMS -> BaraColors.IndigoBadgeBg
+                                ActionType.KAKAO -> BaraColors.CoralBadgeBg
+                            },
                             CircleShape
                         ),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = if (type == ActionType.CALL) Icons.Filled.Call else Icons.Filled.Sms,
+                        imageVector = when (type) {
+                            ActionType.CALL -> Icons.Filled.Call
+                            ActionType.SMS -> Icons.Filled.Sms
+                            ActionType.KAKAO -> Icons.AutoMirrored.Filled.Send
+                        },
                         contentDescription = null,
-                        tint = if (type == ActionType.CALL) BaraColors.Green else BaraColors.Indigo,
+                        tint = when (type) {
+                            ActionType.CALL -> BaraColors.Green
+                            ActionType.SMS -> BaraColors.Indigo
+                            ActionType.KAKAO -> BaraColors.Coral
+                        },
                         modifier = Modifier.size(28.dp)
                     )
                 }

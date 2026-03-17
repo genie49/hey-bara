@@ -256,6 +256,38 @@ class KoogAgentEngine(
         }
     }
 
+    // ── 카카오톡 Tool ──
+
+    object SendKakaoTool : SimpleTool<SendKakaoTool.Args>(
+        argsSerializer = Args.serializer(),
+        name = "send_kakao",
+        description = "카카오톡으로 메시지를 보낸다. 최근 카톡 알림이 온 상대에게만 보낼 수 있다."
+    ) {
+        var appContext: Context? = null
+        @Serializable
+        data class Args(
+            @property:LLMDescription("채팅방 또는 상대 이름") val roomName: String,
+            @property:LLMDescription("보낼 메시지 내용") val message: String
+        )
+        override suspend fun execute(args: Args): String {
+            val ctx = appContext ?: return "알림 서비스가 연결되지 않았습니다."
+            if (!BaraNotificationListener.isEnabled(ctx)) {
+                return "알림 접근 권한이 필요합니다. 설정에서 허용해 주세요."
+            }
+
+            val confirmed = ActionConfirmation.requestConfirmation(
+                "${args.roomName}님에게 '${args.message}'라고 카톡을 보냅니다",
+                ActionType.KAKAO
+            )
+            if (!confirmed) return "사용자가 취소했습니다."
+
+            return BaraNotificationListener.sendKakaoMessage(ctx, args.roomName, args.message).fold(
+                onSuccess = { "${args.roomName}에게 '${args.message}'라고 카톡을 보냈습니다." },
+                onFailure = { it.message ?: "카톡 전송에 실패했습니다." }
+            )
+        }
+    }
+
     // ── 알림 Tool ──
 
     object ListNotificationsTool : SimpleTool<ListNotificationsTool.Args>(
@@ -306,6 +338,7 @@ class KoogAgentEngine(
         tool(CreateTaskTool)
         tool(CompleteTaskTool)
         tool(DeleteTaskTool)
+        tool(SendKakaoTool)
         tool(ListNotificationsTool)
     }
 
@@ -326,6 +359,7 @@ ${BASE_SYSTEM_PROMPT.trimIndent()}
 - 날짜는 ISO 8601 형식으로 변환해 (예: 2026-03-18T15:00:00+09:00)
 - "내일", "다음 주 월요일" 같은 상대 날짜는 현재 시각 기준으로 계산해
 
+카카오톡 메시지를 보내라는 요청이 오면 send_kakao를 사용해. 최근 카톡 알림이 온 상대에게만 보낼 수 있다.
 알림 관련 요청이 오면 list_notifications를 사용해.
 """.trimIndent()
 
@@ -360,6 +394,7 @@ ${BASE_SYSTEM_PROMPT.trimIndent()}
 
     fun setContext(context: Context) {
         MakeCallTool.appContext = context.applicationContext
+        SendKakaoTool.appContext = context.applicationContext
         ListNotificationsTool.appContext = context.applicationContext
     }
 

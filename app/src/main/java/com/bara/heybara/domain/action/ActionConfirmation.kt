@@ -11,7 +11,7 @@ data class ConfirmationRequest(
     val deferred: CompletableDeferred<Boolean>
 )
 
-enum class ActionType { CALL, SMS }
+enum class ActionType { CALL, SMS, KAKAO }
 
 // Tool ↔ UI 사이의 확인 브릿지 (싱글톤)
 object ActionConfirmation {
