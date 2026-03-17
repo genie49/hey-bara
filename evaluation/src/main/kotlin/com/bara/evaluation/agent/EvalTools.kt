@@ -262,6 +262,45 @@ fun createDeleteTaskTool(
     }
 }
 
+// ── 알림/카카오톡 Args ──
+
+@Serializable
+class ListNotificationsArgs
+
+@Serializable
+data class SendKakaoArgs(
+    @property:LLMDescription("채팅방 또는 상대 이름") val roomName: String,
+    @property:LLMDescription("보낼 메시지 내용") val message: String,
+)
+
+// ── 알림/카카오톡 Factory ──
+
+fun createListNotificationsTool(
+    stateStore: MockStateStore,
+): SimpleTool<ListNotificationsArgs> = object : SimpleTool<ListNotificationsArgs>(
+    argsSerializer = ListNotificationsArgs.serializer(),
+    name = "list_notifications",
+    description = "현재 알림 목록을 조회한다.",
+) {
+    override suspend fun execute(args: ListNotificationsArgs): String {
+        stateStore.toolCallLog.add("list_notifications" to emptyMap())
+        return "1. 카카오톡: 철수님이 메시지를 보냈습니다\n2. Gmail: 새 메일 2건"
+    }
+}
+
+fun createSendKakaoTool(
+    stateStore: MockStateStore,
+): SimpleTool<SendKakaoArgs> = object : SimpleTool<SendKakaoArgs>(
+    argsSerializer = SendKakaoArgs.serializer(),
+    name = "send_kakao",
+    description = "카카오톡으로 메시지를 보낸다. 최근 카톡 알림이 온 상대에게만 보낼 수 있다.",
+) {
+    override suspend fun execute(args: SendKakaoArgs): String {
+        stateStore.toolCallLog.add("send_kakao" to mapOf("roomName" to args.roomName, "message" to args.message))
+        return "${args.roomName}에게 '${args.message}'라고 카톡을 보냈습니다."
+    }
+}
+
 // ── 유틸 ──
 
 private fun addDays(date: String, days: Int): String {

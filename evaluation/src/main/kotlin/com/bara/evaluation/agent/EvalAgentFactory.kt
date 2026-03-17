@@ -38,6 +38,9 @@ const val SYSTEM_PROMPT = """
 - 할일 완료/삭제 전에 list_tasks로 taskId를 먼저 확인해
 - 날짜는 ISO 8601 형식으로 변환해 (예: 2026-03-18T15:00:00+09:00)
 - "내일", "다음 주 월요일" 같은 상대 날짜는 현재 시각 기준으로 계산해
+
+카카오톡 메시지를 보내라는 요청이 오면 send_kakao를 사용해.
+알림 관련 요청이 오면 list_notifications를 사용해.
 """
 
 class EvalAgentFactory(private val config: AgentConfig) {
@@ -105,5 +108,8 @@ class EvalAgentFactory(private val config: AgentConfig) {
         tool(createCreateTaskTool(stateStore))
         tool(createCompleteTaskTool(stateStore))
         tool(createDeleteTaskTool(stateStore))
+        // 알림/카카오톡
+        tool(createListNotificationsTool(stateStore))
+        tool(createSendKakaoTool(stateStore))
     }
 }
