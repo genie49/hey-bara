@@ -14,6 +14,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -21,9 +22,11 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.bara.heybara.data.model.ModelInstaller
 import com.bara.heybara.data.settings.SecurePreferences
 import com.bara.heybara.ui.theme.BaraColors
 import com.bara.heybara.ui.theme.HeyBaraTheme
+import kotlinx.coroutines.launch
 
 class SettingsActivity : ComponentActivity() {
 
@@ -48,6 +51,15 @@ fun SettingsScreen(securePrefs: SecurePreferences, onBack: () -> Unit) {
     var apiKeyInput by remember { mutableStateOf("") }
     var savedMessage by remember { mutableStateOf<String?>(null) }
     var hasSavedKey by remember { mutableStateOf(existingKey != null) }
+
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val modelState by ModelInstaller.installState.collectAsState()
+    val modelProgress by ModelInstaller.progress.collectAsState()
+
+    LaunchedEffect(Unit) {
+        ModelInstaller.checkInstalled(context)
+    }
 
     Column(
         modifier = Modifier
@@ -139,6 +151,80 @@ fun SettingsScreen(securePrefs: SecurePreferences, onBack: () -> Unit) {
                         ) {
                             Text("저장")
                         }
+                    }
+                }
+            }
+
+            // 음성 모델 섹션
+            SettingsSection(label = "음성 인식 모델") {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "Korean STT (Zipformer)",
+                                color = BaraColors.TextPrimary,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                "~300MB · 한국어 음성 인식",
+                                color = BaraColors.TextTertiary,
+                                fontSize = 12.sp
+                            )
+                        }
+                        when (modelState) {
+                            ModelInstaller.InstallState.INSTALLED -> {
+                                Text(
+                                    "설치 완료",
+                                    color = BaraColors.Green,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                            ModelInstaller.InstallState.NOT_INSTALLED,
+                            ModelInstaller.InstallState.ERROR -> {
+                                Button(
+                                    onClick = { scope.launch { ModelInstaller.install(context) } },
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = BaraColors.Coral),
+                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                                ) {
+                                    Text(
+                                        if (modelState == ModelInstaller.InstallState.ERROR) "재시도" else "설치",
+                                        fontSize = 13.sp
+                                    )
+                                }
+                            }
+                            ModelInstaller.InstallState.DOWNLOADING -> {
+                                Text(
+                                    "${modelProgress}%",
+                                    color = BaraColors.Indigo,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    }
+                    if (modelState == ModelInstaller.InstallState.DOWNLOADING) {
+                        LinearProgressIndicator(
+                            progress = { modelProgress / 100f },
+                            modifier = Modifier.fillMaxWidth(),
+                            color = BaraColors.Coral,
+                            trackColor = BaraColors.CardSurface,
+                        )
+                    }
+                    if (modelState == ModelInstaller.InstallState.ERROR) {
+                        Text(
+                            "다운로드에 실패했습니다. 네트워크를 확인해 주세요.",
+                            color = BaraColors.Coral,
+                            fontSize = 12.sp
+                        )
                     }
                 }
             }

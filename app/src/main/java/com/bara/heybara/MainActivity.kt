@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Sms
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.bara.heybara.data.model.ModelInstaller
 import com.bara.heybara.domain.action.ActionConfirmation
 import com.bara.heybara.domain.action.ActionType
 import kotlinx.coroutines.delay
@@ -92,10 +93,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        // 설정에서 돌아왔을 때 API Key 상태 갱신
+        // 설정에서 돌아왔을 때 상태 갱신
         val hasKey = SecurePreferences(this).getGeminiApiKey() != null
         viewModel.updateApiKeyStatus(hasKey)
-        if (hasKey) startVoiceService()
+        ModelInstaller.checkInstalled(this)
+        if (hasKey && ModelInstaller.isInstalled(this)) startVoiceService()
     }
 
     private fun requestPermissionsAndStart() {
@@ -137,8 +139,15 @@ fun MainScreen(viewModel: MainViewModel, overrideHasApiKey: Boolean? = null) {
     val hasApiKey by viewModel.hasApiKey.collectAsState()
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
+    val modelState by ModelInstaller.installState.collectAsState()
+
+    LaunchedEffect(Unit) {
+        ModelInstaller.checkInstalled(context)
+    }
+
     // Preview에서는 overrideHasApiKey 사용, 실제로는 ViewModel 상태
     val apiKeyAvailable = overrideHasApiKey ?: hasApiKey
+    val setupComplete = apiKeyAvailable && modelState == ModelInstaller.InstallState.INSTALLED
 
     // 액션 확인 모달
     val confirmationRequest by ActionConfirmation.pendingRequest.collectAsState()
@@ -200,17 +209,24 @@ fun MainScreen(viewModel: MainViewModel, overrideHasApiKey: Boolean? = null) {
         }
 
         // 채팅 영역
-        if (!apiKeyAvailable) {
-            // API Key 미설정 안내
+        if (!setupComplete) {
+            // 설정 미완료 안내
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth(),
                 contentAlignment = Alignment.Center
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("API Key가 설정되지 않았습니다", color = BaraColors.TextSecondary)
-                    Spacer(modifier = Modifier.height(8.dp))
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (!apiKeyAvailable) {
+                        Text("API Key가 설정되지 않았습니다", color = BaraColors.TextSecondary)
+                    }
+                    if (modelState != ModelInstaller.InstallState.INSTALLED) {
+                        Text("음성 인식 모델이 설치되지 않았습니다", color = BaraColors.TextSecondary)
+                    }
                     TextButton(onClick = {
                         context.startActivity(Intent(context, SettingsActivity::class.java))
                     }) {

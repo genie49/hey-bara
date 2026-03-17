@@ -9,6 +9,7 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.bara.heybara.BaraApp
 import com.bara.heybara.R
+import com.bara.heybara.data.model.ModelInstaller
 import com.bara.heybara.data.action.DeviceContactResolver
 import com.bara.heybara.data.agent.KoogAgentEngine
 import com.bara.heybara.data.settings.SecurePreferences
@@ -73,6 +74,14 @@ class VoiceAssistantService : Service() {
 
     private fun onWakeWordDetected() {
         wakeWordDetector?.stop()
+
+        // STT 모델 미설치 시 무시
+        if (!ModelInstaller.isInstalled(this)) {
+            updateNotification("음성 모델 미설치")
+            startWakeWordDetection()
+            return
+        }
+
         updateNotification("듣고 있어요...")
 
         // 앱이 포그라운드가 아니면 오버레이 표시
@@ -121,9 +130,7 @@ class VoiceAssistantService : Service() {
     }
 
     private fun getModelDir(): String {
-        val sttDir = File(filesDir, "models/stt")
-        AssetCopier.copyDirIfNeeded(this, "models/stt", sttDir)
-        return sttDir.absolutePath
+        return File(filesDir, "models/stt").absolutePath
     }
 
     private fun buildNotification(text: String): Notification {
