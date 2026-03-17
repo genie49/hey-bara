@@ -42,6 +42,7 @@ import com.bara.heybara.domain.action.ActionType
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -50,6 +51,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import com.bara.heybara.domain.session.SessionState
@@ -133,6 +136,7 @@ fun MainScreen(viewModel: MainViewModel, overrideHasApiKey: Boolean? = null) {
     val messages by viewModel.messages.collectAsState()
     val hasApiKey by viewModel.hasApiKey.collectAsState()
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
     // Preview에서는 overrideHasApiKey 사용, 실제로는 ViewModel 상태
     val apiKeyAvailable = overrideHasApiKey ?: hasApiKey
 
@@ -152,6 +156,10 @@ fun MainScreen(viewModel: MainViewModel, overrideHasApiKey: Boolean? = null) {
             .fillMaxSize()
             .background(BaraColors.Background)
             .imePadding()
+            .clickable(
+                indication = null,
+                interactionSource = remember { MutableInteractionSource() }
+            ) { focusManager.clearFocus() }
     ) {
         // 헤더
         Row(
